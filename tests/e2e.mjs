@@ -55,8 +55,9 @@ check("prayer card present and not scored", /Prayer/.test(body) && /never scored
 log("Roster");
 await page.goto(`${tripUrl}/people`);
 await page.waitForSelector("h1:text('People')");
-const peopleText = await page.textContent("body");
-check("42 people on the trip", /42 on this trip/.test(peopleText));
+const peopleText = await page.textContent("main");
+const rosterSize = Number(peopleText.match(/(\d+) on this trip/)?.[1] ?? 0);
+check("the roster loads with the whole group", rosterSize >= 50, `${rosterSize} people`);
 
 log("Waivers: generate a signing link");
 await page.goto(`${tripUrl}/waivers`);
@@ -64,22 +65,28 @@ await page.waitForSelector("text=Student Ministry Release 2026");
 await context.grantPermissions(["clipboard-read", "clipboard-write"]);
 // Read the counts off the page first so the assertions hold on a re-run,
 // where some waivers are already signed from a previous pass.
-const outstandingBefore = Number(
-  (await page.textContent("body")).match(/Outstanding\s*(\d+)/)?.[1] ?? "0",
-);
-const signedBefore = Number(
-  (await page.textContent("body")).match(/(\d+)\s*\/\s*42\s*signed/)?.[1] ?? "0",
-);
-await page.click('button:has-text("Copy links for all")');
-await page.waitForSelector("textarea", { timeout: 60000 });
-const linkBlob = await page.inputValue("textarea");
-const firstLine = linkBlob.split("\n")[0];
-const signUrl = firstLine.split(": ").slice(1).join(": ").trim();
+const mainText = () => page.textContent("main");
+const outstandingBefore = Number((await mainText()).match(/Outstanding\s*(\d+)/)?.[1] ?? "0");
+const signedBefore = Number((await mainText()).match(/(\d+)\s*\/\s*\d+\s*signed/)?.[1] ?? "0");
+// The primary delivery flow is a queue that hands over one personal link at a
+// time — bulk export is deliberately secondary and behind a warning.
+await page.click('button:has-text("Work through")');
+await page.waitForSelector("button:has-text('Copy link for')", { timeout: 30000 });
+const queueHeading = await page.textContent("main");
 check(
-  `bulk copy produced a link for every unsigned person (${linkBlob.split("\n").length} of ${outstandingBefore})`,
-  linkBlob.split("\n").length === outstandingBefore,
+  "the queue shows the leader where they are",
+  /1 of \d+/.test(queueHeading),
+  queueHeading.match(/1 of \d+/)?.[0],
 );
-check("a signing link was issued", /\/sign\/[A-Za-z0-9_-]{43}$/.test(signUrl));
+
+await page.click("button:has-text('Copy link for')");
+await page.waitForSelector('input[aria-label^="Signing link"]', { timeout: 30000 });
+const signUrl = (await page.inputValue('input[aria-label^="Signing link"]')).trim();
+check("one personal signing link was issued", /\/sign\/[A-Za-z0-9_-]{43}$/.test(signUrl));
+check(
+  "the queue explains the link is personal",
+  (await page.textContent("main")).includes("personal to them"),
+);
 
 log("Sign the waiver as a parent, with no account");
 // A brand-new context: no cookies, no storage, nothing carried over from the
@@ -133,8 +140,8 @@ check("no participant name is leaked", !/Mercer|Ellis|Nguyen/.test(bogus));
 log("Signature is recorded and visible to the leader");
 await page.goto(`${tripUrl}/waivers`);
 await page.waitForSelector("text=Student Ministry Release 2026");
-const waiverBody = await page.textContent("body");
-const signedAfter = Number(waiverBody.match(/(\d+)\s*\/\s*42\s*signed/)?.[1] ?? "-1");
+const waiverBody = await page.textContent("main");
+const signedAfter = Number(waiverBody.match(/(\d+)\s*\/\s*\d+\s*signed/)?.[1] ?? "-1");
 check(
   `the new signature is counted (${signedBefore} -> ${signedAfter})`,
   signedAfter === signedBefore + 1,
@@ -142,7 +149,12 @@ check(
 await page.click('a:has-text("View signed waiver")');
 await page.waitForSelector("text=Signature record");
 const record = await page.textContent("body");
-check("audit trail stored", /Electronic records consent/.test(record) && /Rosa Mercer/.test(record));
+check(
+  "audit trail stored",
+  /Electronic consent confirmed/.test(record) &&
+    /Audit information/.test(record) &&
+    /Document hash/.test(record),
+);
 check("document snapshot rendered", /Assumption of Risk/.test(record));
 check("collected answers stored", /Peanuts/.test(record));
 
@@ -152,14 +164,14 @@ await page.waitForSelector("text=Auto assign");
 await page.click('button:has-text("Auto assign vehicles")');
 await page.waitForSelector("text=Seats assigned", { timeout: 30000 });
 const transport = await page.textContent("body");
-check("everyone got a seat", /42 of 42 seated/.test(transport));
+check("everyone got a seat", /(\d+) of \1 seated/.test(transport), transport.match(/\d+ of \d+ seated/)?.[0]);
 
 await page.goto(`${tripUrl}/lodging`);
 await page.waitForSelector("text=Auto assign");
 await page.click('button:has-text("Auto assign rooms")');
 await page.waitForSelector("[role='status']", { timeout: 60000 });
 const lodging = await page.textContent("body");
-check("rooms filled", /\d+ of 42 assigned/.test(lodging));
+check("rooms filled", /\d+ of \d+ assigned/.test(lodging), lodging.match(/\d+ of \d+ assigned/)?.[0]);
 
 log("Headcount");
 await page.goto(`${tripUrl}/headcount`);
@@ -167,9 +179,9 @@ await page.fill('input[name="label"]', "Before Departure");
 await page.click('button:has-text("Start headcount")');
 await page.waitForURL(/\/headcount\/[a-z0-9]+/, { timeout: 30000 });
 await page.waitForSelector("text=Before Departure");
-check("headcount starts at zero", (await page.textContent("body")).includes("0 / 42"));
+check("headcount starts at zero", (await page.textContent("main")).includes("0 / "));
 await page.click('button[aria-pressed="false"] >> nth=0');
-await page.waitForSelector("text=1 / 42", { timeout: 15000 });
+await page.waitForFunction(() => (document.querySelector("main .font-display.text-4xl")?.textContent ?? "").trim().startsWith("1 /"), null, { timeout: 15000 });
 check("tapping marks someone present", true);
 
 log("Emergency info");

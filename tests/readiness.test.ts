@@ -132,12 +132,46 @@ test("problems are reported in friendly, specific language", () => {
   const messages = result.issues.map((i) => i.message);
   assert.ok(messages.includes("1 attendee is missing emergency contacts."));
   assert.ok(messages.includes("1 waiver still needs a signature."));
-  assert.ok(messages.includes("1 attendee is not assigned to a vehicle."));
+  assert.ok(messages.includes("1 person is not assigned to a vehicle."));
   assert.ok(messages.includes("Church Van 1 has 3 riders for 2 seats."));
   assert.ok(messages.includes("Church Van 1 still needs a driver."));
   assert.ok(messages.includes("Room 201 is over capacity — 3 people for 1 spot."));
   assert.ok(messages.includes("Room 201 needs an adult leader."));
   assert.ok(messages.some((m) => m.startsWith("$75") && m.endsWith("remains unpaid.")));
+});
+
+test("every issue carries a short headline and a link to the cause", () => {
+  const result = computeReadiness(
+    baseInput({
+      attendees: [
+        person("a", { hasEmergencyContact: false }),
+        person("b", { vehicleId: null }),
+        person("c", { roomId: null }),
+        person("d", { isMinor: true, hasGuardian: false }),
+        person("e", { amountDue: 100, amountPaid: 25, paymentSettled: false }),
+      ],
+      waivers: { required: 5, signed: 0, notRequired: 0, sent: 0, viewed: 0 },
+      vehicles: [{ id: "v1", name: "Van 1", capacity: 15, assigned: 4, hasDriver: true }],
+      rooms: [
+        { id: "r1", name: "Room 201", capacity: 8, assigned: 4, requiresLeader: false, leaderCount: 1 },
+      ],
+    }),
+  );
+
+  for (const issue of result.issues) {
+    assert.ok(issue.headline.length > 0, `missing headline: ${issue.message}`);
+    assert.ok(issue.headline.length <= 40, `headline too long for a phone: ${issue.headline}`);
+    assert.ok(issue.href.startsWith("/"), `href must be trip-relative: ${issue.href}`);
+  }
+
+  const byHeadline = Object.fromEntries(result.issues.map((i) => [i.headline, i.href]));
+  // Tapping a warning must land on the people causing it, not a generic section.
+  assert.equal(byHeadline["5 waivers unsigned"], "/waivers?filter=unsigned");
+  assert.equal(byHeadline["1 missing emergency contact"], "/people?filter=missing-emergency");
+  assert.equal(byHeadline["1 without a vehicle"], "/people?filter=no-vehicle");
+  assert.equal(byHeadline["1 without a room"], "/people?filter=no-room");
+  assert.equal(byHeadline["1 minor without a guardian"], "/people?filter=no-guardian");
+  assert.equal(byHeadline["$75 outstanding"], "/payments?filter=owing");
 });
 
 test("payments are weighted by money owed, not by head count", () => {

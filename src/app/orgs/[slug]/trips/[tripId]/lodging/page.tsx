@@ -9,10 +9,13 @@ export const metadata = { title: "Lodging" };
 
 export default async function LodgingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; tripId: string }>;
+  searchParams: Promise<{ new?: string }>;
 }) {
   const { slug, tripId } = await params;
+  const { new: startNew } = await searchParams;
   await requireTrip(tripId);
 
   const [rooms, attendees] = await Promise.all([
@@ -70,6 +73,7 @@ export default async function LodgingPage({
 
       <LodgingBoard
         tripId={tripId}
+        startNew={startNew === "1"}
         rooms={rooms.map((r) => ({
           id: r.id,
           name: r.name,

@@ -65,7 +65,7 @@ export function SigningForm(props: Props) {
   return (
     <main className="mx-auto w-full max-w-lg px-4 pb-16 pt-6">
       <div className="flex justify-center">
-        <LogoLockup />
+        <LogoLockup static />
       </div>
 
       {/* Who is being signed for — stated plainly, every step. ------------- */}
@@ -264,7 +264,11 @@ export function SigningForm(props: Props) {
                     <Checkbox name={`ack_${ack.key}`} required={ack.required} className="mt-0.5" />
                     <span className="text-sm text-navy">
                       {ack.label}
-                      {ack.required ? <span className="text-coral"> *</span> : null}
+                      {ack.required ? (
+                        <span className="text-coral-deep" aria-hidden="true">
+                          {" *"}
+                        </span>
+                      ) : null}
                     </span>
                   </label>
                 ))}
@@ -291,7 +295,9 @@ export function SigningForm(props: Props) {
               <p className="mb-1.5 text-sm font-semibold text-navy">
                 Draw your signature
                 {props.content.requireDrawnSignature ? (
-                  <span className="text-coral"> *</span>
+                  <span className="text-coral-deep" aria-hidden="true">
+                    {" *"}
+                  </span>
                 ) : null}
               </p>
               <SignaturePad name="drawnSignature" required={props.content.requireDrawnSignature} />
@@ -304,7 +310,7 @@ export function SigningForm(props: Props) {
                 <Link href="/legal/esign" target="_blank" className="font-semibold underline">
                   Learn more
                 </Link>
-                <span className="text-coral"> *</span>
+                <span className="text-coral-deep" aria-hidden="true"> *</span>
               </span>
             </label>
           </Card>

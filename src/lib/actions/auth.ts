@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
 import { createSession, destroySession, getCurrentUser } from "@/lib/auth";
 import { clientIp, userAgent } from "@/lib/request";
-import { LIMITS, rateLimit } from "@/lib/rate-limit";
+import { LIMITS, rateLimit, rateLimitPeek } from "@/lib/rate-limit";
 import { slugify } from "@/lib/format";
 
 export type FormState = { error?: string; ok?: boolean };
@@ -23,7 +23,7 @@ const signupSchema = z.object({
 
 export async function signupAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const ip = await clientIp();
-  const limit = rateLimit(`signup:${ip}`, LIMITS.signup.limit, LIMITS.signup.windowMs);
+  const limit = await rateLimit(`signup:${ip}`, LIMITS.signup.limit, LIMITS.signup.windowMs);
   if (!limit.allowed) {
     return { error: "Too many sign-up attempts. Please try again shortly." };
   }
@@ -65,16 +65,32 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
 
   // Limit by IP and by account so neither a single address nor a single target
   // can be hammered.
-  const ipLimit = rateLimit(`login:ip:${ip}`, LIMITS.login.limit, LIMITS.login.windowMs);
-  const acctLimit = rateLimit(`login:acct:${emailRaw}`, LIMITS.login.limit, LIMITS.login.windowMs);
+  // Both budgets are only *spent* by failures (see recordFailedLogin below), so
+  // check them read-only here.
+  const ipKey = `login:ip:${ip}`;
+  const acctKey = `login:acct:${emailRaw}`;
+  const [ipLimit, acctLimit] = await Promise.all([
+    rateLimitPeek(ipKey, LIMITS.loginPerIp.limit, LIMITS.loginPerIp.windowMs),
+    rateLimitPeek(acctKey, LIMITS.loginPerAccount.limit, LIMITS.loginPerAccount.windowMs),
+  ]);
   if (!ipLimit.allowed || !acctLimit.allowed) {
     return { error: "Too many sign-in attempts. Please wait a few minutes and try again." };
   }
 
+  const recordFailedLogin = async () => {
+    await Promise.all([
+      rateLimit(ipKey, LIMITS.loginPerIp.limit, LIMITS.loginPerIp.windowMs),
+      rateLimit(acctKey, LIMITS.loginPerAccount.limit, LIMITS.loginPerAccount.windowMs),
+    ]);
+  };
+
   const parsed = loginSchema.safeParse({ email: emailRaw, password: formData.get("password") });
   // One message for every failure mode — no account enumeration.
   const genericError = "That email or password doesn't match our records.";
-  if (!parsed.success) return { error: genericError };
+  if (!parsed.success) {
+    await recordFailedLogin();
+    return { error: genericError };
+  }
 
   const user = await prisma.user.findUnique({
     where: { email: parsed.data.email },
@@ -84,11 +100,18 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
   if (!user) {
     // Spend comparable time so a missing account isn't detectable by timing.
     await hashPassword(parsed.data.password);
+    await recordFailedLogin();
     return { error: genericError };
   }
 
   const valid = await verifyPassword(parsed.data.password, user.passwordHash);
-  if (!valid) return { error: genericError };
+  if (!valid) {
+    await recordFailedLogin();
+    return { error: genericError };
+  }
+
+  // A successful sign-in clears the account's failure budget.
+  await prisma.rateLimitCounter.deleteMany({ where: { key: acctKey } }).catch(() => undefined);
 
   await createSession(user.id, await userAgent());
 

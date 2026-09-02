@@ -2,6 +2,11 @@
 
 /* ---------------------------------------------------------------------------
    Ready. Set. Amen. brand system
+
+   The five brand colours are used exactly as specified. The "-deep" and
+   "-faint" variants are the *text* tones derived from them, and every one has
+   been measured against the surfaces it actually sits on so small text clears
+   WCAG AA (4.5:1). Do not lighten them without re-running tests/accessibility.mjs.
    Deep Green #106B4D · Warm Coral #FF6B5C · Golden Yellow #F2B23D
    Warm Cream #FFF6E7 · Dark Navy #0E2239
    --------------------------------------------------------------------------- */
@@ -13,11 +18,11 @@
   --color-green-tint: #f0f8f4;
 
   --color-coral: #ff6b5c;
-  --color-coral-deep: #e04a3b;
+  --color-coral-deep: #bd3527;
   --color-coral-soft: #ffe6e3;
 
   --color-gold: #f2b23d;
-  --color-gold-deep: #c88c1c;
+  --color-gold-deep: #8a5e0a;
   --color-gold-soft: #fdf1da;
 
   --color-cream: #fff6e7;
@@ -25,7 +30,7 @@
 
   --color-navy: #0e2239;
   --color-navy-soft: #405166;
-  --color-navy-faint: #7b8798;
+  --color-navy-faint: #5d6a7a;
 
   --color-line: #e7ddcb;
   --color-surface: #ffffff;
@@ -66,6 +71,12 @@ input, select, textarea, button {
 }
 
 @utility tap-target {
+  min-height: 44px;
+}
+
+/* A checkbox is tapped via its label, so the label is the real touch target. */
+label:has(> input[type="checkbox"]),
+label:has(> input[type="radio"]) {
   min-height: 44px;
 }
 

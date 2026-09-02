@@ -35,26 +35,65 @@ function canonical(value: unknown): string {
   return JSON.stringify(sort(value));
 }
 
-const FIRST_NAMES = [
-  "Maddie", "Jordan", "Ava", "Caleb", "Sophia", "Eli", "Grace", "Owen", "Lily", "Micah",
-  "Ruby", "Levi", "Nora", "Asher", "Hazel", "Silas", "Ivy", "Josiah", "Emery", "Judah",
-  "Cora", "Ezra", "Nova", "Tobias", "Wren", "Beau", "Della", "Amos", "Elise", "Rhett",
-  "Marlowe", "Cyrus", "Talia", "Jonah", "Sadie",
+/**
+ * A realistic roster: families with several children on the same trip, a few
+ * one-off students, a mix of medical notes, and one deliberately long name so
+ * layout problems show up in seed data rather than in front of a youth pastor.
+ */
+const FAMILIES: { last: string; guardian: string; children: string[] }[] = [
+  { last: "Mercer", guardian: "Rosa Mercer", children: ["Maddie", "Jordan", "Eli"] },
+  { last: "Okafor", guardian: "Chidi Okafor", children: ["Ada", "Chinedu"] },
+  { last: "Delgado", guardian: "Marisol Delgado", children: ["Sofia", "Mateo", "Lucia"] },
+  { last: "Whitfield", guardian: "Karen Whitfield", children: ["Grace", "Owen"] },
+  { last: "Nguyen", guardian: "Linh Nguyen", children: ["Anh", "Bao"] },
+  { last: "Bennett", guardian: "Dale Bennett", children: ["Ruby", "Levi"] },
+  { last: "Alvarez", guardian: "Pilar Alvarez", children: ["Micah", "Nova"] },
+  { last: "Boone", guardian: "Susan Boone", children: ["Wren"] },
+  { last: "Park", guardian: "Jae Park", children: ["Ivy", "Silas"] },
+  { last: "Sandoval", guardian: "Ana Sandoval", children: ["Cora", "Ezra"] },
+  { last: "Hayes", guardian: "Bill Hayes", children: ["Judah", "Emery"] },
+  { last: "Kim", guardian: "Grace Kim", children: ["Talia"] },
+  { last: "Brooks", guardian: "Tanya Brooks", children: ["Jonah", "Sadie"] },
+  {
+    last: "Vandenberg-Castellanos",
+    guardian: "Alejandra Vandenberg-Castellanos",
+    children: ["Maximiliano"],
+  },
 ];
-const LAST_NAMES = [
-  "Ellis", "Nguyen", "Rivera", "Bennett", "Okafor", "Hayes", "Delgado", "Kim", "Brooks",
-  "Alvarez", "Whitfield", "Park", "Sandoval", "Mercer", "Boone", "Ellis", "Nguyen", "Hayes",
+
+const SOLO_STUDENTS = [
+  { first: "Beau", last: "Rivera" },
+  { first: "Della", last: "Mercer" },
+  { first: "Amos", last: "Hayes" },
+  { first: "Elise", last: "Park" },
+  { first: "Rhett", last: "Boone" },
+  { first: "Marlowe", last: "Kim" },
+  { first: "Cyrus", last: "Brooks" },
+  { first: "Tobias", last: "Nguyen" },
+  { first: "Hazel", last: "Delgado" },
+  { first: "Asher", last: "Okafor" },
+  { first: "Nora", last: "Bennett" },
+  { first: "Josiah", last: "Alvarez" },
+  { first: "Tess", last: "Whitfield" },
+  { first: "Roman", last: "Sandoval" },
+  { first: "Junie", last: "Rivera" },
 ];
 
 const LEADERS = [
-  { first: "Dana", last: "Reed", phone: "615-555-0180" },
-  { first: "Marcus", last: "Whitfield", phone: "615-555-0181" },
-  { first: "Priya", last: "Raman", phone: "615-555-0182" },
-  { first: "Tom", last: "Boone", phone: "615-555-0183" },
-  { first: "Alexis", last: "Grant", phone: "615-555-0184" },
-  { first: "Chris", last: "Okafor", phone: "615-555-0185" },
-  { first: "Renee", last: "Salas", phone: "615-555-0186" },
+  { first: "Dana", last: "Reed", phone: "615-555-0180", gender: "Female" },
+  { first: "Marcus", last: "Whitfield", phone: "615-555-0181", gender: "Male" },
+  { first: "Priya", last: "Raman", phone: "615-555-0182", gender: "Female" },
+  { first: "Tom", last: "Boone", phone: "615-555-0183", gender: "Male" },
+  { first: "Alexis", last: "Grant", phone: "615-555-0184", gender: "Female" },
+  { first: "Chris", last: "Okafor", phone: "615-555-0185", gender: "Male" },
+  { first: "Renee", last: "Salas", phone: "615-555-0186", gender: "Female" },
+  { first: "Victor", last: "Hollis", phone: "615-555-0187", gender: "Male" },
 ];
+
+const ALLERGIES = ["Peanuts", "Bee stings", "Penicillin", "Shellfish", "Latex"];
+const CONDITIONS = ["Asthma", "Type 1 diabetes", "Migraines", "Anxiety"];
+const MEDICATIONS = ["Inhaler as needed", "Insulin pump", "Daily allergy tablet"];
+const DIETARY = ["Vegetarian", "Gluten free", "No dairy"];
 
 async function main() {
   const email = "leader@example.church";
@@ -237,14 +276,15 @@ async function main() {
     data: { isPrayerStep: true, description: "Take time with your leaders to pray over every person, the travel, the services, the ministry, and what God wants to accomplish through this trip." },
   });
 
-  // 7 leaders + 35 students = 42 people.
+  // 8 leaders + 42 students = 50 people.
+  const leaderIds: string[] = [];
   for (const leader of LEADERS) {
-    await prisma.attendee.create({
+    const created = await prisma.attendee.create({
       data: {
         tripId: trip.id,
         firstName: leader.first,
         lastName: leader.last,
-        gender: ["Dana", "Priya", "Alexis", "Renee"].includes(leader.first) ? "Female" : "Male",
+        gender: leader.gender,
         isMinor: false,
         isLeader: true,
         phone: leader.phone,
@@ -257,42 +297,76 @@ async function main() {
         paymentStatus: "PAID",
       },
     });
+    leaderIds.push(created.id);
   }
 
-  for (let i = 0; i < 35; i += 1) {
-    const first = FIRST_NAMES[i % FIRST_NAMES.length];
-    const last = LAST_NAMES[i % LAST_NAMES.length];
-    const guardianEmail = `${last.toLowerCase()}.family${Math.floor(i / 3)}@example.com`;
-    const paid = i % 4 === 0 ? 150 : i % 3 === 0 ? 50 : 0;
+  const students: { first: string; last: string; guardian: string | null }[] = [];
+  for (const family of FAMILIES) {
+    for (const child of family.children) {
+      students.push({ first: child, last: family.last, guardian: family.guardian });
+    }
+  }
+  for (const solo of SOLO_STUDENTS) {
+    students.push({ first: solo.first, last: solo.last, guardian: null });
+  }
+
+  let index = 0;
+  for (const student of students.slice(0, 42)) {
+    const i = index++;
+    // Payments deliberately messy: some paid in full, some deposit only, some
+    // untouched, one scholarship.
+    const paid = i % 7 === 0 ? 150 : i % 3 === 0 ? 50 : i % 5 === 0 ? 100 : 0;
+    const scholarship = i === 11;
+    // A few students are missing an emergency contact so the dashboard has
+    // something real to complain about.
+    const missingEmergency = i % 13 === 0;
+
+    const guardianEmail = student.guardian
+      ? `${student.guardian.split(" ")[0].toLowerCase()}.${student.last.toLowerCase().replace(/[^a-z]/g, "")}@example.com`
+      : null;
 
     await prisma.attendee.create({
       data: {
         tripId: trip.id,
-        firstName: first,
-        lastName: last,
+        firstName: student.first,
+        lastName: student.last,
         gender: i % 2 === 0 ? "Female" : "Male",
-        dateOfBirth: new Date(Date.UTC(2010 - (i % 4), (i % 12), ((i % 27) + 1))),
+        // Students are 12-17 relative to the trip year, so nobody is a "minor" at 19.
+        dateOfBirth: new Date(Date.UTC(2026 - 12 - (i % 6), i % 12, (i % 27) + 1)),
         isMinor: true,
-        phone: i % 5 === 0 ? `615-555-${String(2000 + i).slice(-4)}` : null,
-        emergencyContactName: i % 7 === 0 ? null : `${last} Parent`,
-        emergencyContactPhone: i % 7 === 0 ? null : `615-555-${String(3000 + i).slice(-4)}`,
+        phone: i % 4 === 0 ? `615-555-${String(2000 + i).slice(-4)}` : null,
+        emergencyContactName: missingEmergency ? null : (student.guardian ?? `${student.last} Parent`),
+        emergencyContactPhone: missingEmergency ? null : `615-555-${String(3000 + i).slice(-4)}`,
         emergencyContactRelation: i % 2 === 0 ? "Mother" : "Father",
-        allergies: i % 6 === 0 ? "Peanuts" : null,
-        medications: i % 9 === 0 ? "Inhaler as needed" : null,
+        allergies: i % 6 === 0 ? ALLERGIES[i % ALLERGIES.length] : null,
+        medicalConditions: i % 9 === 0 ? CONDITIONS[i % CONDITIONS.length] : null,
+        medications: i % 9 === 0 ? MEDICATIONS[i % MEDICATIONS.length] : null,
+        dietaryRestrictions: i % 8 === 0 ? DIETARY[i % DIETARY.length] : null,
+        insuranceProvider: i % 10 === 0 ? "Blue Cross" : null,
         shirtSize: ["YL", "S", "M", "L", "XL"][i % 5],
         amountDue: 150,
-        amountPaid: paid,
-        paymentStatus: paid >= 150 ? "PAID" : paid > 0 ? "DEPOSIT_PAID" : "UNPAID",
-        guardians: {
-          create: {
-            name: `${last} Parent`,
-            email: guardianEmail,
-            emailNormalized: guardianEmail,
-            phone: `615-555-${String(4000 + i).slice(-4)}`,
-            relationship: i % 2 === 0 ? "Mother" : "Father",
-            isPrimary: true,
-          },
-        },
+        amountPaid: scholarship ? 0 : paid,
+        paymentStatus: scholarship
+          ? "SCHOLARSHIP"
+          : paid >= 150
+            ? "PAID"
+            : paid > 0
+              ? "PARTIAL"
+              : "UNPAID",
+        ...(guardianEmail
+          ? {
+              guardians: {
+                create: {
+                  name: student.guardian!,
+                  email: guardianEmail,
+                  emailNormalized: guardianEmail,
+                  phone: `615-555-${String(4000 + i).slice(-4)}`,
+                  relationship: i % 2 === 0 ? "Mother" : "Father",
+                  isPrimary: true,
+                },
+              },
+            }
+          : {}),
       },
     });
   }
@@ -318,17 +392,24 @@ async function main() {
     })),
   });
 
+  // 7 vehicles, 52 usable seats for 50 people — tight but workable, which is
+  // what a real church fleet looks like.
   await prisma.vehicle.createMany({
     data: [
       { tripId: trip.id, name: "Church Van 1", type: "Van", capacity: 15, reservedSeats: 1, driverName: "Dana Reed", driverPhone: "615-555-0180", sortOrder: 0 },
       { tripId: trip.id, name: "Church Van 2", type: "Van", capacity: 15, reservedSeats: 1, driverName: "Marcus Whitfield", driverPhone: "615-555-0181", sortOrder: 1 },
-      { tripId: trip.id, name: "Rental Van", type: "Rental", capacity: 15, reservedSeats: 1, driverName: "Tom Boone", driverPhone: "615-555-0183", sortOrder: 2 },
+      { tripId: trip.id, name: "Rental Van", type: "Rental", capacity: 12, reservedSeats: 1, driverName: "Tom Boone", driverPhone: "615-555-0183", sortOrder: 2 },
+      { tripId: trip.id, name: "Pastor's Suburban", type: "SUV", capacity: 7, reservedSeats: 0, driverName: "Chris Okafor", driverPhone: "615-555-0185", sortOrder: 3 },
+      { tripId: trip.id, name: "Grant Family SUV", type: "SUV", capacity: 6, reservedSeats: 0, driverName: "Alexis Grant", driverPhone: "615-555-0184", sortOrder: 4 },
+      { tripId: trip.id, name: "Salas Car", type: "Car", capacity: 4, reservedSeats: 0, driverName: "Renee Salas", driverPhone: "615-555-0186", sortOrder: 5 },
+      { tripId: trip.id, name: "Gear Truck", type: "Other", capacity: 3, reservedSeats: 1, notes: "Luggage and sound gear", sortOrder: 6 },
     ],
   });
 
+  // 14 rooms: 6 female, 6 male, 2 leader rooms.
   await prisma.room.createMany({
     data: [
-      ...[1, 2, 3, 4, 5].map((n) => ({
+      ...[1, 2, 3, 4, 5, 6].map((n) => ({
         tripId: trip.id,
         name: `Room 20${n}`,
         type: "Hotel Room",
@@ -337,7 +418,7 @@ async function main() {
         requiresLeader: n <= 2,
         sortOrder: n,
       })),
-      ...[1, 2, 3, 4, 5].map((n) => ({
+      ...[1, 2, 3, 4, 5, 6].map((n) => ({
         tripId: trip.id,
         name: `Room 30${n}`,
         type: "Hotel Room",
@@ -346,22 +427,146 @@ async function main() {
         requiresLeader: n <= 2,
         sortOrder: 10 + n,
       })),
-      { tripId: trip.id, name: "Room 401", type: "Hotel Room", capacity: 2, designation: "ANY", sortOrder: 20 },
-      { tripId: trip.id, name: "Room 402", type: "Hotel Room", capacity: 2, designation: "ANY", sortOrder: 21 },
+      { tripId: trip.id, name: "Room 401", type: "Hotel Room", capacity: 2, designation: "FEMALE", notes: "Leaders", sortOrder: 20 },
+      { tripId: trip.id, name: "Room 402", type: "Hotel Room", capacity: 2, designation: "MALE", notes: "Leaders", sortOrder: 21 },
     ],
   });
 
+  // Four days of schedule so "what's today?" is a real question.
+  const day = (offset: number) =>
+    new Date(start.getTime() + offset * 24 * 60 * 60 * 1000);
+
   await prisma.itineraryItem.createMany({
     data: [
-      { tripId: trip.id, date: start, startTime: "07:00", title: "Meet at Church", location: "Church parking lot" },
-      { tripId: trip.id, date: start, startTime: "07:45", title: "Departure" },
-      { tripId: trip.id, date: start, startTime: "12:00", endTime: "13:00", title: "Lunch Stop", location: "Bowling Green, KY" },
-      { tripId: trip.id, date: start, startTime: "15:30", title: "Hotel Check-In" },
-      { tripId: trip.id, date: start, startTime: "19:00", endTime: "21:00", title: "Evening Service" },
-      { tripId: trip.id, date: end, startTime: "09:00", title: "Pack and Load" },
-      { tripId: trip.id, date: end, startTime: "10:00", title: "Return Home" },
+      { tripId: trip.id, date: day(0), startTime: "06:30", title: "Meet at Church", location: "Church parking lot", description: "Bags loaded before 7:00." },
+      { tripId: trip.id, date: day(0), startTime: "07:00", title: "Load Vehicles" },
+      { tripId: trip.id, date: day(0), startTime: "07:45", title: "Departure", description: "Headcount before we pull out." },
+      { tripId: trip.id, date: day(0), startTime: "12:00", endTime: "13:00", title: "Lunch Stop", location: "Bowling Green, KY" },
+      { tripId: trip.id, date: day(0), startTime: "15:30", title: "Hotel Check-In", location: "Downtown Inn" },
+      { tripId: trip.id, date: day(0), startTime: "18:00", endTime: "19:00", title: "Dinner" },
+      { tripId: trip.id, date: day(0), startTime: "19:30", endTime: "21:30", title: "Opening Service" },
+      { tripId: trip.id, date: day(0), startTime: "23:00", title: "Hotel Curfew" },
+
+      { tripId: trip.id, date: day(1), startTime: "07:30", title: "Breakfast" },
+      { tripId: trip.id, date: day(1), startTime: "09:00", endTime: "12:00", title: "Serve Project — Food Bank", location: "Second Harvest" },
+      { tripId: trip.id, date: day(1), startTime: "12:30", title: "Lunch" },
+      { tripId: trip.id, date: day(1), startTime: "14:00", endTime: "16:30", title: "Free Time", location: "Hotel" },
+      { tripId: trip.id, date: day(1), startTime: "19:00", endTime: "21:30", title: "Evening Service" },
+
+      { tripId: trip.id, date: day(2), startTime: "07:30", title: "Breakfast" },
+      { tripId: trip.id, date: day(2), startTime: "09:00", endTime: "12:00", title: "Serve Project — Neighborhood Cleanup" },
+      { tripId: trip.id, date: day(2), startTime: "14:00", title: "Youth Activity", location: "City park" },
+      { tripId: trip.id, date: day(2), startTime: "19:00", endTime: "21:30", title: "Evening Service" },
+
+      { tripId: trip.id, date: day(3), startTime: "08:00", title: "Pack and Load" },
+      { tripId: trip.id, date: day(3), startTime: "09:00", title: "Hotel Check-Out" },
+      { tripId: trip.id, date: day(3), startTime: "10:00", title: "Return Home", description: "Final headcount before departure." },
     ],
   });
+
+  // A handful of waivers already signed, so the dashboard shows real progress
+  // against real outstanding work.
+  const toSign = await prisma.waiverRecipient.findMany({
+    where: { requirementId: requirement.id },
+    include: { attendee: { select: { id: true, firstName: true, lastName: true, dateOfBirth: true } } },
+    orderBy: { id: "asc" },
+    take: 16,
+  });
+
+  for (const recipient of toSign) {
+    const snapshot = {
+      formatVersion: 1 as const,
+      templateId: template.id,
+      versionId: template.versions[0].id,
+      versionNumber: 1,
+      content: waiverContent,
+      capturedAt: new Date().toISOString(),
+    };
+    const signerName =
+      recipient.signerRole === "GUARDIAN"
+        ? `${recipient.attendee.lastName} Parent`
+        : `${recipient.attendee.firstName} ${recipient.attendee.lastName}`;
+
+    await prisma.signedWaiver.create({
+      data: {
+        recipientId: recipient.id,
+        attendeeId: recipient.attendee.id,
+        versionId: template.versions[0].id,
+        documentSnapshot: snapshot,
+        documentHash: createHash("sha256").update(canonical(snapshot)).digest("hex"),
+        participantNameAtSigning: `${recipient.attendee.firstName} ${recipient.attendee.lastName}`,
+        participantDateOfBirth: recipient.attendee.dateOfBirth,
+        signerName,
+        signerRole: recipient.signerRole,
+        signerRelationship: recipient.signerRole === "GUARDIAN" ? "Mother" : "Self",
+        signerEmail: null,
+        typedSignature: signerName,
+        signedAt: new Date(Date.now() - Math.floor(Math.random() * 12) * 86_400_000),
+        ipAddress: "203.0.113.42",
+        userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15",
+        consentToElectronicRecords: true,
+        consentText:
+          "I agree to sign this document electronically. I understand that my electronic " +
+          "signature is the legal equivalent of my handwritten signature, that this " +
+          "record will be provided to me electronically, and that I may request a paper " +
+          "copy from the organization at any time.",
+        acknowledgements: [
+          { key: "readAndUnderstood", label: "I have read this document in full and I understand it.", checked: true },
+          { key: "guardianAuthority", label: "I confirm I am the participant, or the participant's parent or legal guardian with authority to sign.", checked: true },
+          { key: "photoConsent", label: "I consent to the photo and media release above.", checked: true },
+        ],
+        responses: {
+          create: [
+            { fieldKey: "emergencyContactName", fieldLabel: "Emergency Contact Name", value: `${recipient.attendee.lastName} Parent` },
+            { fieldKey: "emergencyContactPhone", fieldLabel: "Emergency Contact Phone", value: "615-555-0150" },
+          ],
+        },
+      },
+    });
+
+    await prisma.waiverRecipient.update({
+      where: { id: recipient.id },
+      data: { status: "SIGNED", signedAt: new Date(), sentAt: new Date(Date.now() - 86_400_000) },
+    });
+  }
+
+  // A few more have been sent but not signed, and a couple only viewed.
+  const sentOnly = await prisma.waiverRecipient.findMany({
+    where: { requirementId: requirement.id, status: "NOT_SENT" },
+    orderBy: { id: "asc" },
+    take: 9,
+  });
+  for (const [i, recipient] of sentOnly.entries()) {
+    await prisma.waiverRecipient.update({
+      where: { id: recipient.id },
+      data:
+        i < 3
+          ? { status: "VIEWED", sentAt: new Date(Date.now() - 172_800_000), viewedAt: new Date(Date.now() - 86_400_000) }
+          : { status: "SENT", sentAt: new Date(Date.now() - 172_800_000) },
+    });
+  }
+
+  // Some preparation already done.
+  await prisma.task.updateMany({
+    where: { tripId: trip.id, title: { in: ["Confirm Transportation", "Confirm Drivers", "Confirm Lodging", "Leader Meeting"] } },
+    data: { status: "DONE", completedAt: new Date() },
+  });
+  await prisma.task.updateMany({
+    where: { tripId: trip.id, title: "Collect Waivers" },
+    data: { status: "IN_PROGRESS" },
+  });
+
+  // Fill the leader roles so the trip looks like someone is actually running it.
+  const leaderRoleNames = ["Trip Leader", "Assistant Leader", "Medication Coordinator", "Headcount Leader"];
+  const roles = await prisma.leaderAssignment.findMany({
+    where: { tripId: trip.id, role: { in: leaderRoleNames } },
+  });
+  for (const [i, role] of roles.entries()) {
+    await prisma.leaderAssignment.update({
+      where: { id: role.id },
+      data: { attendeeId: leaderIds[i % leaderIds.length] },
+    });
+  }
 
   const base = (process.env.APP_URL ?? (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : "http://localhost:3000")).replace(/\/+$/, "");
 

@@ -11,10 +11,14 @@ export const metadata = { title: "Tasks" };
 
 export default async function TasksPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; tripId: string }>;
+  searchParams: Promise<{ new?: string }>;
 }) {
   const { slug, tripId } = await params;
+  // Arriving from the Quick Actions "+" opens the form already focused.
+  const { new: startNew } = await searchParams;
   await requireTrip(tripId);
   const base = `/orgs/${slug}/trips/${tripId}`;
 
@@ -50,7 +54,7 @@ export default async function TasksPage({
         }))}
       />
 
-      <AddTaskForm tripId={tripId} />
+      <AddTaskForm tripId={tripId} startOpen={startNew === "1"} />
 
       {/* The prayer step sits apart from the checklist on purpose. */}
       <Card className="border-gold/40 bg-gold-soft p-5">

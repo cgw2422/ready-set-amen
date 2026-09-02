@@ -26,13 +26,16 @@ In the project canvas: **+ New → Database → Add PostgreSQL**.
 
 Open the app service → **Variables**:
 
-| Variable | Value |
-| --- | --- |
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` — type it exactly; it is a reference, not a literal |
-| `SEED_DEMO_DATA` | `true` — loads the demo church so you can test immediately |
+| Variable | Required | Value |
+| --- | --- | --- |
+| `DATABASE_URL` | **yes** | `${{Postgres.DATABASE_URL}}` — type it exactly; it is a reference, not a literal |
+| `SEED_DEMO_DATA` | no | `true` — loads the 50-person demo trip so you can test immediately. **Delete it after your first look.** |
+| `APP_URL` | no | Your public URL, e.g. `https://your-app.up.railway.app`. Leave unset and the app uses Railway's `RAILWAY_PUBLIC_DOMAIN`; set it explicitly once you add a custom domain, because waiver links are built from it. |
+| `RESEND_API_KEY` | no | Optional transactional email. Without it, leaders use Copy Link, which is the primary flow. |
+| `MAIL_FROM` | no | Required only if `RESEND_API_KEY` is set, e.g. `Ready Set Amen <trips@yourchurch.org>` |
 
-Leave `APP_URL` unset for now. The app falls back to Railway's own
-`RAILWAY_PUBLIC_DOMAIN`, so signing links are correct from the first boot.
+Nothing else is needed. There is no auth vendor, no e-signature vendor, no SMS,
+and no AI service to configure — `DATABASE_URL` is the only hard requirement.
 
 ## 4. Generate the public domain
 
@@ -83,8 +86,10 @@ Password: readysetamen2026
 ```
 
 That account owns **Grace Community Church** with a **Summer Mission Trip**:
-42 people (35 students, 7 leaders), a real waiver template, 3 vans, 12 rooms,
-a schedule, and a preparation checklist.
+50 people (42 students, 8 leaders), families with several children on the same
+trip, a real waiver template with 16 signed and 25 not yet sent, 7 vehicles,
+14 rooms, four days of schedule, partial payments, medical and allergy records,
+and a preparation checklist.
 
 ## Testing the parent waiver flow from a phone
 

@@ -9,10 +9,13 @@ export const metadata = { title: "Schedule" };
 
 export default async function ItineraryPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; tripId: string }>;
+  searchParams: Promise<{ new?: string }>;
 }) {
   const { slug, tripId } = await params;
+  const { new: startNew } = await searchParams;
   await requireTrip(tripId);
 
   const [trip, items, attendees] = await Promise.all([
@@ -51,6 +54,7 @@ export default async function ItineraryPage({
 
       <ItineraryBoard
         tripId={tripId}
+        startNew={startNew === "1"}
         defaultDate={toDateInputValue(trip.startDate)}
         items={items.map((i) => ({
           id: i.id,

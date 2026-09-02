@@ -38,9 +38,17 @@ const FILTERS = [
   { value: "paid", label: "Settled" },
 ];
 
-export function PaymentsTable({ attendees }: { attendees: Attendee[] }) {
+export function PaymentsTable({
+  attendees,
+  initialFilter = "all",
+}: {
+  attendees: Attendee[];
+  initialFilter?: string;
+}) {
   const [open, setOpen] = useState<string | null>(null);
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState(
+    FILTERS.some((f) => f.value === initialFilter) ? initialFilter : "all",
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -61,7 +69,7 @@ export function PaymentsTable({ attendees }: { attendees: Attendee[] }) {
             key={f.value}
             type="button"
             onClick={() => setFilter(f.value)}
-            className={`rounded-full border px-3 py-1.5 text-sm font-semibold ${
+            className={`min-h-[44px] rounded-full border px-3 py-1.5 text-sm font-semibold ${
               filter === f.value
                 ? "border-green-brand bg-green-brand text-white"
                 : "border-line bg-white text-navy-soft"
@@ -81,7 +89,7 @@ export function PaymentsTable({ attendees }: { attendees: Attendee[] }) {
             <Card as="li" key={attendee.id} className="p-3">
               <button
                 type="button"
-                className="flex w-full items-center justify-between gap-3 text-left"
+                className="flex min-h-[44px] w-full items-center justify-between gap-3 text-left"
                 onClick={() => setOpen(isOpen ? null : attendee.id)}
                 aria-expanded={isOpen}
               >

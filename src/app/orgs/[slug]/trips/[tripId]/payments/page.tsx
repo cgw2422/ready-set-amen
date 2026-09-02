@@ -12,10 +12,13 @@ export const metadata = { title: "Payments" };
 
 export default async function PaymentsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; tripId: string }>;
+  searchParams: Promise<{ filter?: string }>;
 }) {
   const { slug, tripId } = await params;
+  const { filter } = await searchParams;
   await requireTrip(tripId);
 
   const [trip, attendees] = await Promise.all([
@@ -115,6 +118,7 @@ export default async function PaymentsPage({
       </Card>
 
       <PaymentsTable
+        initialFilter={filter ?? "all"}
         attendees={attendees.map((a) => ({
           id: a.id,
           name: displayName(a),

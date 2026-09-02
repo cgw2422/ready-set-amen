@@ -12,10 +12,13 @@ export const metadata = { title: "Waivers" };
 
 export default async function TripWaiversPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; tripId: string }>;
+  searchParams: Promise<{ filter?: string }>;
 }) {
   const { slug, tripId } = await params;
+  const { filter } = await searchParams;
   const ctx = await requireTrip(tripId);
   const base = `/orgs/${slug}/trips/${tripId}`;
 
@@ -140,6 +143,7 @@ export default async function TripWaiversPage({
                 templateName: requirement.version.template.name,
               }}
               orgSlug={slug}
+              initialFilter={filter ?? "all"}
               emailAvailable={mailEnabled()}
               recipients={requirement.recipients.map((r) => ({
                 id: r.id,

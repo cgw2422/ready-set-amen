@@ -75,8 +75,17 @@ export type CategoryResult = {
 
 export type TripIssue = {
   severity: "action" | "warning" | "info";
+  /** Short headline, e.g. "6 waivers unsigned" — sized for a dashboard chip. */
+  headline: string;
+  /** The friendly sentence, e.g. "6 waivers still need a signature." */
   message: string;
   category: ReadinessCategoryKey | "prayer";
+  /**
+   * Trip-relative path to the exact people or items causing this, so tapping a
+   * warning lands on a filtered list rather than a section the leader then has
+   * to search.
+   */
+  href: string;
 };
 
 export type ReadinessResult = {
@@ -122,14 +131,18 @@ export function computeReadiness(input: ReadinessInput): ReadinessResult {
     issues.push({
       severity: "action",
       category: "attendees",
+      headline: `${missingEmergency.length} missing emergency ${plural(missingEmergency.length, "contact", "contacts")}`,
       message: `${missingEmergency.length} ${plural(missingEmergency.length, "attendee is", "attendees are")} missing emergency contacts.`,
+      href: "/people?filter=missing-emergency",
     });
   }
   if (minorsMissingGuardian.length > 0) {
     issues.push({
       severity: "action",
       category: "attendees",
+      headline: `${minorsMissingGuardian.length} ${plural(minorsMissingGuardian.length, "minor", "minors")} without a guardian`,
       message: `${minorsMissingGuardian.length} ${plural(minorsMissingGuardian.length, "minor needs", "minors need")} a parent or guardian on file.`,
+      href: "/people?filter=no-guardian",
     });
   }
 
@@ -141,7 +154,9 @@ export function computeReadiness(input: ReadinessInput): ReadinessResult {
     issues.push({
       severity: "action",
       category: "waivers",
+      headline: `${waiversOutstanding} ${plural(waiversOutstanding, "waiver", "waivers")} unsigned`,
       message: `${waiversOutstanding} ${plural(waiversOutstanding, "waiver", "waivers")} still ${plural(waiversOutstanding, "needs", "need")} a signature.`,
+      href: "/waivers?filter=unsigned",
     });
   }
 
@@ -151,7 +166,9 @@ export function computeReadiness(input: ReadinessInput): ReadinessResult {
     issues.push({
       severity: "warning",
       category: "forms",
+      headline: `${formsOutstanding} ${plural(formsOutstanding, "form", "forms")} outstanding`,
       message: `${formsOutstanding} required ${plural(formsOutstanding, "form is", "forms are")} still outstanding.`,
+      href: "/forms",
     });
   }
 
@@ -164,7 +181,9 @@ export function computeReadiness(input: ReadinessInput): ReadinessResult {
     issues.push({
       severity: "warning",
       category: "payments",
+      headline: `${money(outstanding)} outstanding`,
       message: `${money(outstanding)} remains unpaid.`,
+      href: "/payments?filter=owing",
     });
   }
 
@@ -178,21 +197,27 @@ export function computeReadiness(input: ReadinessInput): ReadinessResult {
     issues.push({
       severity: "action",
       category: "transportation",
-      message: `${unassignedRiders.length} ${plural(unassignedRiders.length, "attendee is", "attendees are")} not assigned to a vehicle.`,
+      headline: `${unassignedRiders.length} without a vehicle`,
+      message: `${unassignedRiders.length} ${plural(unassignedRiders.length, "person is", "people are")} not assigned to a vehicle.`,
+      href: "/people?filter=no-vehicle",
     });
   }
   for (const v of overCapacityVehicles) {
     issues.push({
       severity: "action",
       category: "transportation",
+      headline: `${v.name} over capacity`,
       message: `${v.name} has ${v.assigned} riders for ${v.capacity} ${plural(v.capacity, "seat", "seats")}.`,
+      href: "/transportation",
     });
   }
   for (const v of driverlessVehicles) {
     issues.push({
       severity: "warning",
       category: "transportation",
+      headline: `${v.name} has no driver`,
       message: `${v.name} still needs a driver.`,
+      href: "/transportation",
     });
   }
 
@@ -218,21 +243,27 @@ export function computeReadiness(input: ReadinessInput): ReadinessResult {
     issues.push({
       severity: "action",
       category: "lodging",
-      message: `${unassignedSleepers.length} ${plural(unassignedSleepers.length, "attendee is", "attendees are")} not assigned to a room.`,
+      headline: `${unassignedSleepers.length} without a room`,
+      message: `${unassignedSleepers.length} ${plural(unassignedSleepers.length, "person is", "people are")} not assigned to a room.`,
+      href: "/people?filter=no-room",
     });
   }
   for (const r of overCapacityRooms) {
     issues.push({
       severity: "action",
       category: "lodging",
+      headline: `${r.name} over capacity`,
       message: `${r.name} is over capacity — ${r.assigned} people for ${r.capacity} ${plural(r.capacity, "spot", "spots")}.`,
+      href: "/lodging",
     });
   }
   for (const r of roomsMissingLeader) {
     issues.push({
       severity: "warning",
       category: "lodging",
+      headline: `${r.name} needs a leader`,
       message: `${r.name} needs an adult leader.`,
+      href: "/lodging",
     });
   }
 
@@ -248,7 +279,9 @@ export function computeReadiness(input: ReadinessInput): ReadinessResult {
     issues.push({
       severity: "warning",
       category: "leaders",
+      headline: `${role.role} unassigned`,
       message: `No one is assigned to ${role.role} yet.`,
+      href: "/leaders",
     });
   }
   const leaderTotal = input.leaders.length;
@@ -262,7 +295,9 @@ export function computeReadiness(input: ReadinessInput): ReadinessResult {
     issues.push({
       severity: "info",
       category: "tasks",
+      headline: `${tasksOutstanding} ${plural(tasksOutstanding, "task", "tasks")} open`,
       message: `${tasksOutstanding} preparation ${plural(tasksOutstanding, "task is", "tasks are")} still open.`,
+      href: "/tasks",
     });
   }
 
@@ -354,7 +389,9 @@ export function computeReadiness(input: ReadinessInput): ReadinessResult {
     issues.push({
       severity: "info",
       category: "prayer",
+      headline: "Ready for prayer",
       message: "You've checked the boxes. Now let's cover the trip in prayer.",
+      href: "/prayer",
     });
   }
 

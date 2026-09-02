@@ -82,14 +82,24 @@ No waiver language is ever generated for you.
 ## Tests
 
 ```bash
-npm test          # readiness engine, auto-assign, crypto, waiver content
-npm run test:e2e  # full browser walkthrough at 390px (needs a running dev server)
+npm test                                   # pure logic: readiness, auto-assign, crypto, waiver content
+TEST_DATABASE_URL=... npm run test:integrity  # waiver integrity, against a real database
+TEST_DATABASE_URL=... npm run test:security   # tenancy, injection, XSS, tokens, rate limiting
+npm run test:e2e                           # full walkthrough at 390px
+node tests/day-of-trip.mjs                 # the morning-of workflow, timed
+node tests/accessibility.mjs               # targets, contrast, keyboard, 200% text
 ```
 
-The end-to-end script signs a waiver as a parent with no account, checks that
-the link dies afterwards, checks that an invented token leaks nothing, runs
-auto-assign for vehicles and rooms, runs a headcount, prints a packet, completes
-the prayer step, and asserts no page scrolls horizontally on a phone.
+The browser suites need a running server; point them with `E2E_BASE_URL`.
+
+* **Waiver integrity** proves the guarantees that only a database can: a used
+  link cannot be replayed, a tampered version is refused, editing a template
+  never alters a signed record, and two simultaneous submissions produce exactly
+  one signature.
+* **Day-of-trip** plays a youth pastor in a parking lot at 6:30am and times each
+  step, so slow paths show up as numbers.
+* **Accessibility** measures touch targets, computes WCAG contrast ratios,
+  tabs through forms, and re-renders at 200% text.
 
 ---
 

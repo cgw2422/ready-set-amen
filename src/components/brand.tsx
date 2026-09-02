@@ -24,19 +24,41 @@ export function Wordmark({
 }
 
 /** Single-line lockup for headers and nav. */
-export function LogoLockup({ href = "/", subtle = false }: { href?: string; subtle?: boolean }) {
+export function LogoLockup({
+  href = "/",
+  subtle = false,
+  /** Renders the mark without a link — used on the public signing page. */
+  static: isStatic = false,
+}: {
+  href?: string;
+  subtle?: boolean;
+  static?: boolean;
+}) {
+  const Wrapper = isStatic
+    ? ({ children }: { children: React.ReactNode }) => (
+        <span className="inline-flex items-center gap-2">{children}</span>
+      )
+    : ({ children }: { children: React.ReactNode }) => (
+        <Link href={href} className="inline-flex min-h-[44px] items-center gap-2">
+          {children}
+        </Link>
+      );
+
   return (
-    <Link href={href} className="inline-flex items-center gap-2">
+    <Wrapper>
       <CheckBadge />
       <span
         className={`font-display text-lg font-extrabold uppercase tracking-tight ${
           subtle ? "text-navy" : "text-green-brand"
         }`}
       >
-        Ready<span className="text-coral">.</span>Set<span className="text-gold">.</span>Amen
-        <span className="text-coral">.</span>
+        {/* The punctuation is part of the logotype, which WCAG exempts from
+            contrast requirements; it is decorative and never load-bearing. */}
+        Ready<span className="text-coral" aria-hidden="true">.</span>Set
+        <span className="text-gold" aria-hidden="true">.</span>Amen
+        <span className="text-coral" aria-hidden="true">.</span>
       </span>
-    </Link>
+    </Wrapper>
   );
 }
 

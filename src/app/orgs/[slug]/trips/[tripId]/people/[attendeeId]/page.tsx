@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireTrip } from "@/lib/access";
 import { toNumber } from "@/lib/trip-data";
-import { ageOn, displayName, formatDate, money, toDateInputValue } from "@/lib/format";
-import { Badge, Card, LinkButton } from "@/components/ui";
+import { ageOn, displayName, formatDate, minorFlagMismatch, money, toDateInputValue } from "@/lib/format";
+import { Alert, Badge, Card, LinkButton } from "@/components/ui";
 import { AttendeeForm } from "../attendee-form";
 import { DeleteAttendeeButton } from "./delete-attendee";
 
@@ -50,10 +50,11 @@ export default async function AttendeePage({
   const due = toNumber(attendee.amountDue);
   const paid = toNumber(attendee.amountPaid);
   const age = ageOn(attendee.dateOfBirth);
+  const flagMismatch = minorFlagMismatch(attendee);
 
   return (
     <div className="space-y-4">
-      <Link href={`${base}/people`} className="text-sm font-semibold text-green-brand">
+      <Link href={`${base}/people`} className="inline-flex min-h-[44px] items-center text-sm font-semibold text-green-brand">
         &lsaquo; Back to people
       </Link>
 
@@ -62,6 +63,16 @@ export default async function AttendeePage({
         {attendee.isMinor ? <Badge tone="gold">Minor{age !== null ? ` · ${age}` : ""}</Badge> : null}
         {attendee.isLeader ? <Badge tone="navy">Leader</Badge> : null}
       </div>
+
+      {flagMismatch ? (
+        <Alert tone="warning" title="Check the minor/adult setting">
+          {displayName(attendee)} is {flagMismatch.age}, but is marked as{" "}
+          {attendee.isMinor ? "a minor" : "an adult"}. This decides who signs the waiver —{" "}
+          {flagMismatch.expected === "adult"
+            ? "an adult normally signs for themselves."
+            : "a parent or guardian normally signs for a minor."}
+        </Alert>
+      ) : null}
 
       {/* At-a-glance ------------------------------------------------------- */}
       <div className="grid gap-3 sm:grid-cols-2">

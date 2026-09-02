@@ -54,7 +54,7 @@ export function EmergencyList({ people }: { people: Person[] }) {
       <button
         type="button"
         onClick={() => setMedicalOnly((v) => !v)}
-        className={`rounded-full border px-3 py-1.5 text-sm font-semibold ${
+        className={`min-h-[44px] rounded-full border px-3 py-1.5 text-sm font-semibold ${
           medicalOnly
             ? "border-coral bg-coral text-white"
             : "border-line bg-white text-navy-soft"

@@ -8,9 +8,9 @@ import { SubmitButton } from "@/components/submit-button";
 
 const initial: FormState = {};
 
-export function AddTaskForm({ tripId }: { tripId: string }) {
+export function AddTaskForm({ tripId, startOpen = false }: { tripId: string; startOpen?: boolean }) {
   const [state, action] = useActionState(createTaskAction.bind(null, tripId), initial);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
 
   if (!open) {
     return (

@@ -7,12 +7,14 @@ const variantClass: Record<Variant, string> = {
   primary: "bg-green-brand text-white hover:bg-green-deep active:bg-green-deep",
   secondary: "bg-white text-navy border border-line hover:bg-cream",
   ghost: "bg-transparent text-navy-soft hover:bg-cream-deep",
-  danger: "bg-coral text-white hover:bg-coral-deep",
+  danger: "bg-coral text-navy hover:bg-coral-deep hover:text-white",
   gold: "bg-gold text-navy hover:bg-gold-deep hover:text-white",
 };
 
 const sizeClass = {
-  sm: "px-3 py-1.5 text-sm rounded-lg",
+  // 44px minimum even on the compact size: these get tapped on a phone,
+  // often by someone walking.
+  sm: "px-3 py-1.5 text-sm rounded-lg min-h-[44px]",
   md: "px-4 py-2.5 text-[15px] rounded-xl min-h-[44px]",
   lg: "px-6 py-3.5 text-base rounded-xl min-h-[52px]",
 };
@@ -100,7 +102,7 @@ export function Badge({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${toneClass[tone]} ${className}`}
+      className={`inline-flex max-w-full items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold break-words ${toneClass[tone]} ${className}`}
     >
       {children}
     </span>
@@ -124,7 +126,11 @@ export function Field({
     <label className={`block ${className}`}>
       <span className="mb-1.5 block text-sm font-semibold text-navy">
         {label}
-        {required ? <span className="ml-1 text-coral">*</span> : null}
+        {required ? (
+          <span className="ml-1 text-coral-deep" aria-hidden="true">
+            *
+          </span>
+        ) : null}
       </span>
       {children}
       {hint ? <span className="mt-1 block text-xs text-navy-faint">{hint}</span> : null}
@@ -152,7 +158,7 @@ export function Checkbox({ className = "", ...props }: ComponentProps<"input">) 
     <input
       type="checkbox"
       {...props}
-      className={`h-5 w-5 shrink-0 rounded border-2 border-navy-faint text-green-brand accent-[#106b4d] focus:ring-2 focus:ring-green-brand/40 ${className}`}
+      className={`h-6 w-6 shrink-0 rounded border-2 border-navy-faint text-green-brand accent-[#106b4d] focus:ring-2 focus:ring-green-brand/40 ${className}`}
     />
   );
 }

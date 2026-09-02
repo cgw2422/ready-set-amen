@@ -18,7 +18,7 @@ export default async function NewAttendeePage({
 
   return (
     <div className="space-y-4">
-      <Link href={`/orgs/${slug}/trips/${tripId}/people`} className="text-sm font-semibold text-green-brand">
+      <Link href={`/orgs/${slug}/trips/${tripId}/people`} className="inline-flex min-h-[44px] items-center text-sm font-semibold text-green-brand">
         &lsaquo; Back to people
       </Link>
       <h1 className="font-display text-2xl font-extrabold text-navy">Add a person</h1>

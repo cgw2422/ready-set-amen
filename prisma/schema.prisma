@@ -670,3 +670,20 @@ model HeadcountRecord {
   @@index([attendeeId])
   @@map("headcount_records")
 }
+
+// ---------------------------------------------------------------------------
+// Rate limiting
+// ---------------------------------------------------------------------------
+
+/// Fixed-window counters shared across instances. One row per key per window,
+/// incremented by a single atomic upsert so two app instances cannot both let a
+/// request through on the same budget (docs/ARCHITECTURE.md §5).
+model RateLimitCounter {
+  key         String   @id
+  windowStart BigInt
+  count       Int
+  expiresAt   DateTime
+
+  @@index([expiresAt])
+  @@map("rate_limit_counters")
+}

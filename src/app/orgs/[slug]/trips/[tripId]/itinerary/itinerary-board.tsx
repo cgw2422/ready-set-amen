@@ -30,13 +30,15 @@ export function ItineraryBoard({
   items,
   leaders,
   defaultDate,
+  startNew = false,
 }: {
   tripId: string;
   items: Item[];
   leaders: { id: string; name: string }[];
   defaultDate: string;
+  startNew?: boolean;
 }) {
-  const [editing, setEditing] = useState<Item | "new" | null>(null);
+  const [editing, setEditing] = useState<Item | "new" | null>(startNew ? "new" : null);
   const [pending, startTransition] = useTransition();
 
   const days = new Map<string, Item[]>();

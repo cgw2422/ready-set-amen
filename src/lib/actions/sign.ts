@@ -26,7 +26,7 @@ export async function submitSignatureAction(
   await assertSameOrigin();
 
   const ip = await clientIp();
-  const limit = rateLimit(`sign:${ip}`, LIMITS.signingSubmit.limit, LIMITS.signingSubmit.windowMs);
+  const limit = await rateLimit(`sign:${ip}`, LIMITS.signingSubmit.limit, LIMITS.signingSubmit.windowMs);
   if (!limit.allowed) {
     return { error: "Too many attempts. Please wait a few minutes and try again." };
   }

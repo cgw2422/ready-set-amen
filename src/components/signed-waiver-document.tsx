@@ -26,21 +26,43 @@ export type SignedWaiverRecord = {
   responses: { id: string; fieldKey: string; fieldLabel: string; value: string }[];
 };
 
+/** Delivery timeline from the recipient row, when the caller has it. */
+export type SignedWaiverTimeline = {
+  sentAt: Date | null;
+  viewedAt: Date | null;
+};
+
 type Snapshot = { versionNumber?: number; content?: unknown; capturedAt?: string };
+
+const MEDICAL_KEYS = new Set([
+  "allergies",
+  "medicalConditions",
+  "medications",
+  "dietaryRestrictions",
+  "insuranceProvider",
+  "insurancePolicyNumber",
+  "doctorName",
+  "doctorPhone",
+]);
 
 /**
  * Renders a signed waiver from its own immutable snapshot — never from the live
- * template. A copy printed years later shows the words that were signed.
+ * template — so a copy printed years later shows the words that were signed.
+ *
+ * The audit section is written to be read by a church administrator, not a
+ * developer: plain labels first, technical evidence grouped at the end.
  */
 export function SignedWaiverDocument({
   record,
   tripName,
   organizationName,
+  timeline,
   showMedical = true,
 }: {
   record: SignedWaiverRecord;
   tripName: string;
   organizationName: string;
+  timeline?: SignedWaiverTimeline;
   showMedical?: boolean;
 }) {
   const snapshot = (record.documentSnapshot ?? {}) as Snapshot;
@@ -49,19 +71,8 @@ export function SignedWaiverDocument({
   const acknowledgements = Array.isArray(record.acknowledgements)
     ? (record.acknowledgements as { key: string; label: string; checked: boolean }[])
     : [];
-
-  const medicalKeys = new Set([
-    "allergies",
-    "medicalConditions",
-    "medications",
-    "dietaryRestrictions",
-    "insuranceProvider",
-    "insurancePolicyNumber",
-    "doctorName",
-    "doctorPhone",
-  ]);
   const responses = record.responses.filter(
-    (r) => r.value.trim().length > 0 && (showMedical || !medicalKeys.has(r.fieldKey)),
+    (r) => r.value.trim().length > 0 && (showMedical || !MEDICAL_KEYS.has(r.fieldKey)),
   );
 
   return (
@@ -74,42 +85,44 @@ export function SignedWaiverDocument({
       ) : null}
 
       <header className="border-b border-line pb-4">
+        <p className="font-display text-xs font-extrabold uppercase tracking-[0.18em] text-green-brand">
+          Signed waiver
+        </p>
         <h1 className="font-display text-2xl font-extrabold">
           {parsed.success ? parsed.data.waiverTitle : "Signed waiver"}
         </h1>
         <p className="text-sm text-navy-soft">
           {parsed.success ? parsed.data.organizationName : organizationName} · {tripName}
         </p>
-        <p className="mt-1 text-xs text-navy-faint">
-          Signed waiver ID {record.id} · document version {snapshot.versionNumber ?? "—"} · content
-          hash {record.documentHash.slice(0, 16)}…
-        </p>
       </header>
 
-      <section className="print-avoid-break rounded-xl border border-line p-4">
+      {/* 1. The record, in the order a person asks the questions -------------- */}
+      <section className="print-avoid-break rounded-xl border-2 border-green-brand/25 bg-green-tint/40 p-4">
         <h2 className="font-display text-base font-bold">Signature record</h2>
-        <dl className="mt-2 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-          <Row label="Participant" value={record.participantNameAtSigning} />
+        <dl className="mt-3 grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          <Row label="Signed by" value={record.signerName} emphasis />
+          <Row label="Signing for" value={record.participantNameAtSigning} emphasis />
           <Row
-            label="Participant date of birth"
-            value={record.participantDateOfBirth ? formatDate(record.participantDateOfBirth) : "—"}
-          />
-          <Row label="Signed by" value={record.signerName} />
-          <Row
-            label="Capacity"
+            label="Relationship"
             value={
               record.signerRole === "SELF"
-                ? "Participant (signing for themselves)"
-                : `Parent / legal guardian — ${record.signerRelationship}`
+                ? "Self — the participant signed for themselves"
+                : `${record.signerRelationship} (parent or legal guardian)`
             }
           />
-          <Row label="Signer email" value={record.signerEmail ?? "—"} />
-          <Row label="Signer phone" value={record.signerPhone ?? "—"} />
-          <Row label="Signed at" value={formatDateTime(record.signedAt)} />
-          <Row label="IP address" value={record.ipAddress ?? "—"} />
+          <Row label="Date and time signed" value={formatDateTime(record.signedAt)} emphasis />
+          <Row label="Waiver version" value={`Version ${snapshot.versionNumber ?? "—"}`} />
+          <Row label="Document ID" value={record.id} mono />
+          {record.participantDateOfBirth ? (
+            <Row
+              label="Participant date of birth"
+              value={formatDate(record.participantDateOfBirth)}
+            />
+          ) : null}
+          <Row label="Signer contact" value={record.signerEmail ?? record.signerPhone ?? "—"} />
         </dl>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid gap-4 border-t border-green-brand/20 pt-4 sm:grid-cols-2">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-navy-faint">
               Typed signature
@@ -130,13 +143,23 @@ export function SignedWaiverDocument({
             </div>
           ) : null}
         </div>
+      </section>
 
-        <p className="mt-4 rounded-lg bg-cream px-3 py-2 text-xs text-navy-soft">
-          <span className="font-semibold">Electronic records consent:</span> {record.consentText}
+      {/* 2. Consent, stated as a confirmation ------------------------------- */}
+      <section className="print-avoid-break rounded-xl border border-line p-4">
+        <h2 className="flex items-center gap-2 font-display text-base font-bold">
+          <span aria-hidden="true" className="text-green-brand">
+            ✓
+          </span>
+          Electronic consent confirmed
+        </h2>
+        <p className="mt-1 text-sm text-navy-soft">
+          {record.signerName} agreed to sign electronically on{" "}
+          {formatDateTime(record.signedAt)}. They were shown this exact wording:
         </p>
-        {record.userAgent ? (
-          <p className="mt-2 break-words text-[10px] text-navy-faint">Device: {record.userAgent}</p>
-        ) : null}
+        <blockquote className="mt-2 border-l-2 border-green-brand/40 pl-3 text-sm italic">
+          {record.consentText}
+        </blockquote>
       </section>
 
       {acknowledgements.length > 0 ? (
@@ -146,7 +169,7 @@ export function SignedWaiverDocument({
             {acknowledgements.map((ack) => (
               <li key={ack.key} className="flex gap-2">
                 <span aria-hidden="true">{ack.checked ? "☑" : "☐"}</span>
-                <span>{ack.label}</span>
+                <span className={ack.checked ? "" : "text-navy-faint"}>{ack.label}</span>
               </li>
             ))}
           </ul>
@@ -156,13 +179,42 @@ export function SignedWaiverDocument({
       {responses.length > 0 ? (
         <section className="print-avoid-break">
           <h2 className="font-display text-base font-bold">Information provided</h2>
-          <dl className="mt-2 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+          <dl className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2">
             {responses.map((r) => (
               <Row key={r.id} label={r.fieldLabel} value={r.value} />
             ))}
           </dl>
         </section>
       ) : null}
+
+      {/* 3. Technical evidence, grouped and last ---------------------------- */}
+      <section className="print-avoid-break rounded-xl border border-line bg-cream/60 p-4">
+        <h2 className="font-display text-base font-bold">Audit information</h2>
+        <p className="mt-1 text-xs text-navy-soft">
+          Kept so this signature can be shown to be genuine later. The document hash proves the text
+          below is byte-for-byte what was signed.
+        </p>
+        <dl className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+          {timeline?.sentAt ? (
+            <Row label="Link sent" value={formatDateTime(timeline.sentAt)} />
+          ) : null}
+          {timeline?.viewedAt ? (
+            <Row label="First opened" value={formatDateTime(timeline.viewedAt)} />
+          ) : null}
+          <Row label="Signed" value={formatDateTime(record.signedAt)} />
+          <Row label="IP address at signing" value={record.ipAddress ?? "Not recorded"} />
+          <Row label="Document ID" value={record.id} mono />
+          <Row label="Document hash (SHA-256)" value={record.documentHash} mono wrap />
+          {snapshot.capturedAt ? (
+            <Row label="Snapshot captured" value={formatDateTime(new Date(snapshot.capturedAt))} />
+          ) : null}
+        </dl>
+        {record.userAgent ? (
+          <p className="mt-3 break-words text-[11px] text-navy-faint">
+            <span className="font-semibold">Device:</span> {record.userAgent}
+          </p>
+        ) : null}
+      </section>
 
       <section>
         <h2 className="font-display text-base font-bold">Document as signed</h2>
@@ -186,11 +238,29 @@ export function SignedWaiverDocument({
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({
+  label,
+  value,
+  emphasis,
+  mono,
+  wrap,
+}: {
+  label: string;
+  value: string;
+  emphasis?: boolean;
+  mono?: boolean;
+  wrap?: boolean;
+}) {
   return (
     <div>
       <dt className="text-xs font-semibold uppercase tracking-wide text-navy-faint">{label}</dt>
-      <dd className="whitespace-pre-wrap">{value}</dd>
+      <dd
+        className={`whitespace-pre-wrap ${emphasis ? "font-semibold" : ""} ${
+          mono ? "font-mono text-xs" : ""
+        } ${wrap ? "break-all" : ""}`}
+      >
+        {value}
+      </dd>
     </div>
   );
 }

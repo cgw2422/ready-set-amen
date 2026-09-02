@@ -11,6 +11,7 @@ import {
   type LinkResult,
 } from "@/lib/actions/waivers";
 import { Alert, Badge, Button, Card, Checkbox } from "@/components/ui";
+import { WaiverQueue } from "./waiver-queue";
 
 type Recipient = {
   id: string;
@@ -57,10 +58,12 @@ export function WaiverDashboard({
   requirement,
   recipients,
   emailAvailable,
+  initialFilter = "all",
 }: {
   tripId: string;
   base: string;
   orgSlug: string;
+  initialFilter?: string;
   requirement: {
     id: string;
     title: string;
@@ -72,7 +75,10 @@ export function WaiverDashboard({
   recipients: Recipient[];
   emailAvailable: boolean;
 }) {
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]["value"]>("all");
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]["value"]>(
+    (FILTERS.find((f) => f.value === initialFilter)?.value ?? "all"),
+  );
+  const [queueOpen, setQueueOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [links, setLinks] = useState<LinkResult[]>([]);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
@@ -210,8 +216,10 @@ export function WaiverDashboard({
             { label: "Sent", value: sent.length },
             { label: "Viewed", value: viewed.length },
           ].map((stat) => (
-            <div key={stat.label} className="rounded-xl bg-cream px-3 py-2">
-              <dt className="text-xs font-semibold uppercase tracking-wide text-navy-faint">
+            <div key={stat.label} className="min-w-0 rounded-xl bg-cream px-3 py-2">
+              {/* Single long words like "Outstanding" cannot wrap on their own;
+                  at large text they would otherwise widen the whole grid. */}
+              <dt className="break-words text-xs font-semibold uppercase tracking-wide text-navy-faint">
                 {stat.label}
               </dt>
               <dd className="font-display text-xl font-bold text-navy">{stat.value}</dd>
@@ -246,31 +254,74 @@ export function WaiverDashboard({
         <Alert tone={message.tone === "success" ? "success" : "error"}>{message.text}</Alert>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          disabled={pending || outstanding.length === 0}
-          onClick={() => generateBulk()}
-        >
-          {pending ? "Working…" : `Copy links for all ${outstanding.length} unsigned`}
-        </Button>
-        {selected.size > 0 ? (
+      {queueOpen ? (
+        <WaiverQueue
+          recipients={(selected.size > 0
+            ? outstanding.filter((r) => selected.has(r.id))
+            : outstanding
+          ).map((r) => ({
+            id: r.id,
+            name: r.name,
+            signerRole: r.signerRole,
+            guardianName: r.guardianName,
+            contact: r.contact,
+            status: r.status,
+          }))}
+          onClose={() => {
+            setQueueOpen(false);
+            setSelected(new Set());
+          }}
+        />
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="lg"
+            disabled={outstanding.length === 0}
+            onClick={() => setQueueOpen(true)}
+          >
+            {selected.size > 0
+              ? `Work through ${selected.size} selected`
+              : `Work through ${outstanding.length} outstanding`}
+          </Button>
+          <Link
+            href={`/print/trip/${tripId}/unsigned-waivers`}
+            className="inline-flex min-h-[52px] items-center rounded-xl border border-line bg-white px-4 text-[15px] font-semibold text-navy"
+          >
+            Print unsigned list
+          </Link>
+        </div>
+      )}
+
+      {/* Bulk export is deliberately secondary and behind a warning: each link
+          is personal to one participant, so a single pasted blob would hand
+          every parent every other child's link. */}
+      {!queueOpen && outstanding.length > 0 ? (
+        <details className="rounded-xl border border-line bg-white px-4 py-3">
+          <summary className="cursor-pointer text-sm font-semibold text-navy-soft">
+            Advanced: export all links at once
+          </summary>
+          <p className="mt-2 text-xs text-navy-soft">
+            Every link is personal to one participant. Use this only to paste into a spreadsheet or
+            mail merge that sends each person their own link —{" "}
+            <span className="font-semibold text-coral-deep">
+              never paste the whole list into a group chat.
+            </span>
+          </p>
           <Button
             type="button"
             variant="secondary"
+            size="sm"
+            className="mt-3"
             disabled={pending}
-            onClick={() => generateBulk([...selected])}
+            onClick={() => generateBulk(selected.size > 0 ? [...selected] : undefined)}
           >
-            Copy {selected.size} selected
+            {pending
+              ? "Working…"
+              : `Copy ${selected.size > 0 ? selected.size : outstanding.length} links as a list`}
           </Button>
-        ) : null}
-        <Link
-          href={`/print/trip/${tripId}/unsigned-waivers`}
-          className="inline-flex min-h-[44px] items-center rounded-xl border border-line bg-white px-4 text-[15px] font-semibold text-navy"
-        >
-          Print unsigned list
-        </Link>
-      </div>
+        </details>
+      ) : null}
 
       {links.length > 0 ? (
         <Card className="p-4">
@@ -296,13 +347,13 @@ export function WaiverDashboard({
         </Card>
       ) : null}
 
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0">
+      <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button
             key={f.value}
             type="button"
             onClick={() => setFilter(f.value)}
-            className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-semibold ${
+            className={`shrink-0 min-h-[44px] rounded-full border px-3 py-1.5 text-sm font-semibold ${
               filter === f.value
                 ? "border-green-brand bg-green-brand text-white"
                 : "border-line bg-white text-navy-soft"
@@ -318,23 +369,24 @@ export function WaiverDashboard({
           const unsigned = recipient.status !== "SIGNED" && recipient.status !== "NOT_REQUIRED";
           return (
             <Card as="li" key={recipient.id} className="p-3">
-              <div className="flex items-start gap-3">
+              <div className="flex min-w-0 items-start gap-3">
                 {unsigned ? (
-                  <Checkbox
-                    className="mt-1"
-                    checked={selected.has(recipient.id)}
-                    onChange={() => toggle(recipient.id)}
-                    aria-label={`Select ${recipient.name}`}
-                  />
+                  <label className="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center">
+                    <Checkbox
+                      checked={selected.has(recipient.id)}
+                      onChange={() => toggle(recipient.id)}
+                      aria-label={`Select ${recipient.name}`}
+                    />
+                  </label>
                 ) : (
-                  <span className="mt-1 h-5 w-5" aria-hidden="true" />
+                  <span className="h-[44px] w-[44px] shrink-0" aria-hidden="true" />
                 )}
 
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <Link
                       href={`${base}/people/${recipient.attendeeId}`}
-                      className="font-semibold text-navy underline decoration-transparent hover:decoration-inherit"
+                      className="break-words font-semibold text-navy underline decoration-transparent hover:decoration-inherit"
                     >
                       {recipient.name}
                     </Link>
@@ -342,7 +394,9 @@ export function WaiverDashboard({
                       {STATUS_LABEL[recipient.status] ?? recipient.status}
                     </Badge>
                   </div>
-                  <p className="mt-0.5 text-xs text-navy-faint">
+                  {/* Emails are one unbreakable token; without this a long
+                      address pushes the whole row wider than the phone. */}
+                  <p className="mt-0.5 break-words text-xs text-navy-faint">
                     {recipient.signerRole === "GUARDIAN"
                       ? `Guardian signs${recipient.guardianName ? ` · ${recipient.guardianName}` : " · no guardian on file"}`
                       : "Signs for themselves"}
@@ -353,7 +407,7 @@ export function WaiverDashboard({
                     {recipient.signedWaiverId ? (
                       <Link
                         href={`${base}/waivers/${recipient.signedWaiverId}`}
-                        className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold text-navy"
+                        className="inline-flex min-h-[44px] items-center rounded-lg border border-line px-3 py-1.5 text-sm font-semibold text-navy"
                       >
                         View signed waiver
                       </Link>

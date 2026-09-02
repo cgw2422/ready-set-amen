@@ -30,7 +30,7 @@ export default async function TripLayout({
         <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-3">
           <Link
             href={`/orgs/${slug}`}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line text-navy"
+            className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full border border-line text-navy"
             aria-label="Back to trips"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden="true">
@@ -43,7 +43,7 @@ export default async function TripLayout({
               />
             </svg>
           </Link>
-          <Link href={base} className="min-w-0 flex-1">
+          <Link href={base} className="flex min-h-[44px] min-w-0 flex-1 flex-col justify-center">
             <p className="truncate font-display text-base font-bold leading-tight text-navy">
               {trip.name}
             </p>

@@ -11,6 +11,18 @@ export const metadata = { title: "People" };
 
 type Search = { q?: string; filter?: string; added?: string };
 
+/** Explains a filtered roster so a short list never looks like missing data. */
+const FILTER_LABELS: Record<string, string> = {
+  minors: "minors only",
+  leaders: "leaders only",
+  unsigned: "waiver still needed",
+  "missing-emergency": "no emergency contact on file",
+  "no-guardian": "minors without a parent or guardian",
+  "no-vehicle": "not assigned to a vehicle",
+  "no-room": "not assigned to a room",
+  owing: "still owes money",
+};
+
 export default async function PeoplePage({
   params,
   searchParams,
@@ -65,6 +77,12 @@ export default async function PeoplePage({
         return a.waiverRecipients.some((r) => r.status !== "SIGNED" && r.status !== "NOT_REQUIRED");
       case "owing":
         return toNumber(a.amountPaid) < toNumber(a.amountDue);
+      case "no-guardian":
+        return a.isMinor && a.guardians.length === 0;
+      case "no-vehicle":
+        return !a.vehicleAssignment;
+      case "no-room":
+        return !a.roomAssignment;
       default:
         return true;
     }
@@ -98,6 +116,12 @@ export default async function PeoplePage({
 
       <PeopleFilters basePath={`${base}/people`} q={q} filter={filter} />
 
+      {filter !== "all" ? (
+        <p className="text-sm font-semibold text-navy-soft">
+          Showing {filtered.length} of {attendees.length} — {FILTER_LABELS[filter] ?? filter}.
+        </p>
+      ) : null}
+
       {filtered.length === 0 ? (
         <EmptyState
           title={attendees.length === 0 ? "No one on the roster yet." : "No one matches that."}
@@ -128,7 +152,7 @@ export default async function PeoplePage({
               <Card as="li" key={a.id} className="p-0">
                 <Link
                   href={`${base}/people/${a.id}`}
-                  className="flex items-center gap-3 p-3 hover:bg-cream"
+                  className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3 hover:bg-cream"
                 >
                   <span
                     className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full font-display text-sm font-bold ${
@@ -152,7 +176,9 @@ export default async function PeoplePage({
                     </span>
                   </span>
 
-                  <span className="flex shrink-0 flex-col items-end gap-1">
+                  {/* Wraps instead of forcing the row wider: at large accessibility
+                      text these badges are easily wider than the phone. */}
+                  <span className="flex min-w-0 flex-wrap items-center justify-end gap-1 sm:ml-auto">
                     {missingEmergency ? <Badge tone="coral">No emergency contact</Badge> : null}
                     {a.waiverRecipients.length > 0 ? (
                       <Badge tone={waiverSigned ? "green" : "coral"}>

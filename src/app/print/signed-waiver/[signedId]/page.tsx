@@ -22,6 +22,7 @@ export default async function PrintSignedWaiverPage({
     },
     include: {
       responses: { orderBy: { fieldLabel: "asc" } },
+      recipient: { select: { sentAt: true, viewedAt: true } },
       attendee: {
         select: { trip: { select: { name: true, organization: { select: { name: true } } } } },
       },
@@ -34,6 +35,7 @@ export default async function PrintSignedWaiverPage({
       record={record}
       tripName={record.attendee.trip.name}
       organizationName={record.attendee.trip.organization.name}
+      timeline={{ sentAt: record.recipient.sentAt, viewedAt: record.recipient.viewedAt }}
     />
   );
 }

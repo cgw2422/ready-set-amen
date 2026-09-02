@@ -55,7 +55,7 @@ export default async function WaiverTemplatePage({
       </header>
 
       <main className="mx-auto w-full max-w-3xl px-5 py-6">
-        <Link href={`/orgs/${slug}/waivers`} className="text-sm font-semibold text-green-brand">
+        <Link href={`/orgs/${slug}/waivers`} className="inline-flex min-h-[44px] items-center text-sm font-semibold text-green-brand">
           &lsaquo; Back to waiver library
         </Link>
 

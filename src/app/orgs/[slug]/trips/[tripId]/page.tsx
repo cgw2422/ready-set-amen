@@ -20,11 +20,6 @@ const CATEGORY_HREF: Record<ReadinessCategoryKey, string> = {
   tasks: "/tasks",
 };
 
-const ISSUE_HREF: Record<ReadinessCategoryKey | "prayer", string> = {
-  ...CATEGORY_HREF,
-  prayer: "/prayer",
-};
-
 export async function generateMetadata({
   params,
 }: {
@@ -131,36 +126,53 @@ export default async function TripDashboard({
         </section>
       ) : null}
 
-      {/* Problems first ---------------------------------------------------- */}
+      {/* Problems first, stated plainly, each one a tap from the fix ------- */}
       {actionIssues.length > 0 ? (
-        <Card className="p-5">
-          <p className="font-display text-lg font-bold text-navy">A few things need you</p>
-          <ul className="mt-3 space-y-2">
-            {actionIssues.slice(0, 8).map((issue, index) => (
+        <Card className="overflow-hidden p-0">
+          <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3">
+            <p className="font-display text-lg font-bold text-navy">Needs your attention</p>
+            <span className="rounded-full bg-coral px-2.5 py-1 text-xs font-bold text-navy">
+              {actionIssues.length}
+            </span>
+          </div>
+          <ul className="divide-y divide-line">
+            {actionIssues.map((issue, index) => (
               <li key={index}>
                 <Link
-                  href={`${base}${ISSUE_HREF[issue.category]}`}
-                  className="flex items-start gap-3 rounded-xl border border-line px-3 py-2.5 hover:bg-cream"
+                  href={`${base}${issue.href}`}
+                  className="flex min-h-[64px] items-center gap-3 px-4 py-3 hover:bg-cream active:bg-cream-deep"
                 >
                   <span
-                    className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                      issue.severity === "action" ? "bg-coral" : "bg-gold"
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                      issue.severity === "action"
+                        ? "bg-coral-soft text-coral-deep"
+                        : "bg-gold-soft text-gold-deep"
                     }`}
                     aria-hidden="true"
-                  />
-                  <span className="flex-1 text-sm text-navy">{issue.message}</span>
-                  <span aria-hidden="true" className="text-navy-faint">
+                  >
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                      <path
+                        d="M12 8v5M12 16.5h.01"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                      />
+                      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.7" />
+                    </svg>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-display text-base font-bold leading-tight text-navy">
+                      {issue.headline}
+                    </span>
+                    <span className="block text-xs text-navy-soft">{issue.message}</span>
+                  </span>
+                  <span aria-hidden="true" className="shrink-0 text-navy-faint">
                     &rsaquo;
                   </span>
                 </Link>
               </li>
             ))}
           </ul>
-          {actionIssues.length > 8 ? (
-            <p className="mt-2 text-xs text-navy-faint">
-              +{actionIssues.length - 8} more to review inside each section.
-            </p>
-          ) : null}
         </Card>
       ) : (
         <Card className="p-5">
@@ -176,10 +188,13 @@ export default async function TripDashboard({
           {infoIssues.map((issue, index) => (
             <li key={index}>
               <Link
-                href={`${base}${ISSUE_HREF[issue.category]}`}
-                className="block rounded-xl border border-line bg-white px-4 py-3 text-sm text-navy-soft hover:bg-cream"
+                href={`${base}${issue.href}`}
+                className="flex min-h-[52px] items-center justify-between gap-3 rounded-xl border border-line bg-white px-4 py-3 text-sm text-navy-soft hover:bg-cream"
               >
-                {issue.message}
+                <span>{issue.message}</span>
+                <span aria-hidden="true" className="text-navy-faint">
+                  &rsaquo;
+                </span>
               </Link>
             </li>
           ))}

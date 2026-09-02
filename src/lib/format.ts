@@ -103,3 +103,21 @@ export function toDateInputValue(date: Date | null | undefined): string {
   if (!date) return "";
   return date.toISOString().slice(0, 10);
 }
+
+/**
+ * Flags a roster entry whose minor/adult flag contradicts its date of birth.
+ *
+ * This matters beyond tidiness: the flag decides whether the participant signs
+ * their own waiver or a guardian signs for them. A 19-year-old marked as a
+ * minor means the wrong person is being asked to sign.
+ */
+export function minorFlagMismatch(attendee: {
+  isMinor: boolean;
+  dateOfBirth: Date | null;
+}): { age: number; expected: "adult" | "minor" } | null {
+  const age = ageOn(attendee.dateOfBirth);
+  if (age === null) return null;
+  if (attendee.isMinor && age >= 18) return { age, expected: "adult" };
+  if (!attendee.isMinor && age < 18) return { age, expected: "minor" };
+  return null;
+}

@@ -18,7 +18,10 @@ export default async function SignedWaiverPage({
 
   const record = await prisma.signedWaiver.findFirst({
     where: { id: signedId, attendee: { tripId } },
-    include: { responses: { orderBy: { fieldLabel: "asc" } } },
+    include: {
+      responses: { orderBy: { fieldLabel: "asc" } },
+      recipient: { select: { sentAt: true, viewedAt: true } },
+    },
   });
   if (!record) notFound();
 
@@ -27,7 +30,7 @@ export default async function SignedWaiverPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           href={`/orgs/${slug}/trips/${tripId}/waivers`}
-          className="text-sm font-semibold text-green-brand"
+          className="inline-flex min-h-[44px] items-center text-sm font-semibold text-green-brand"
         >
           &lsaquo; Back to waivers
         </Link>
@@ -44,6 +47,7 @@ export default async function SignedWaiverPage({
           record={record}
           tripName={ctx.trip.name}
           organizationName={ctx.organization.name}
+          timeline={{ sentAt: record.recipient.sentAt, viewedAt: record.recipient.viewedAt }}
         />
       </Card>
     </div>

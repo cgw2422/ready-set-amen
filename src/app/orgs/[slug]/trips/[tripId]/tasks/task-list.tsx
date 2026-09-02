@@ -43,7 +43,7 @@ export function TaskList({ tasks }: { tasks: Task[] }) {
               onClick={() => cycle(task)}
               disabled={pending}
               aria-label={`Mark ${task.title} as ${NEXT_STATUS[task.status].toLowerCase().replace("_", " ")}`}
-              className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+              className={`flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
                 task.status === "DONE"
                   ? "border-green-brand bg-green-brand text-white"
                   : task.status === "IN_PROGRESS"

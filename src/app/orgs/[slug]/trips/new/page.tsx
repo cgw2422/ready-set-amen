@@ -10,7 +10,7 @@ export default async function NewTripPage({ params }: { params: Promise<{ slug: 
 
   return (
     <main className="mx-auto w-full max-w-lg px-5 py-8">
-      <Link href={`/orgs/${slug}`} className="text-sm font-semibold text-green-brand">
+      <Link href={`/orgs/${slug}`} className="inline-flex min-h-[44px] items-center text-sm font-semibold text-green-brand">
         &lsaquo; Back to trips
       </Link>
       <h1 className="mt-4 font-display text-3xl font-extrabold text-navy">Create a trip</h1>

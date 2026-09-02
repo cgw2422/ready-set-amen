@@ -12,7 +12,7 @@ export default async function NewWaiverPage({ params }: { params: Promise<{ slug
 
   return (
     <main className="mx-auto w-full max-w-lg px-5 py-8">
-      <Link href={`/orgs/${slug}/waivers`} className="text-sm font-semibold text-green-brand">
+      <Link href={`/orgs/${slug}/waivers`} className="inline-flex min-h-[44px] items-center text-sm font-semibold text-green-brand">
         &lsaquo; Back to waiver library
       </Link>
       <h1 className="mt-4 font-display text-3xl font-extrabold text-navy">Create a waiver</h1>

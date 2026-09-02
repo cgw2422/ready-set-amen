@@ -24,7 +24,7 @@ export default async function SignPage({ params }: { params: Promise<{ token: st
   const { token } = await params;
 
   const ip = await clientIp();
-  const limit = rateLimit(
+  const limit = await rateLimit(
     `signview:${ip}`,
     LIMITS.signingTokenLookup.limit,
     LIMITS.signingTokenLookup.windowMs,

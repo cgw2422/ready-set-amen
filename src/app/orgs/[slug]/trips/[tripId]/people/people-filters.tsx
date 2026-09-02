@@ -10,6 +10,9 @@ const FILTERS = [
   { value: "leaders", label: "Leaders" },
   { value: "unsigned", label: "Waiver needed" },
   { value: "missing-emergency", label: "No emergency contact" },
+  { value: "no-guardian", label: "No guardian" },
+  { value: "no-vehicle", label: "No vehicle" },
+  { value: "no-room", label: "No room" },
   { value: "owing", label: "Owes money" },
 ];
 
@@ -46,13 +49,13 @@ export function PeopleFilters({
           push(e.currentTarget.value, filter);
         }}
       />
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0">
+      <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button
             key={f.value}
             type="button"
             onClick={() => push(value, f.value)}
-            className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-semibold ${
+            className={`shrink-0 min-h-[44px] rounded-full border px-3 py-1.5 text-sm font-semibold ${
               filter === f.value
                 ? "border-green-brand bg-green-brand text-white"
                 : "border-line bg-white text-navy-soft"

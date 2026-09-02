@@ -17,8 +17,26 @@ export type SessionUser = {
 };
 
 export async function createSession(userId: string, ua?: string) {
+  const jarBefore = await cookies();
+  const previous = jarBefore.get(COOKIE_NAME)?.value;
+
   const token = generateToken(32);
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+
+  // Signing in mints a brand-new token and destroys whatever token the browser
+  // arrived with, so a fixated or previously captured cookie stops working at
+  // the moment of login rather than lingering until it expires.
+  if (previous) {
+    await prisma.session
+      .deleteMany({ where: { tokenHash: sha256(previous) } })
+      .catch(() => undefined);
+  }
+
+  // Opportunistically clear this user's expired rows so the table does not
+  // accumulate dead sessions.
+  await prisma.session
+    .deleteMany({ where: { userId, expiresAt: { lt: new Date() } } })
+    .catch(() => undefined);
 
   await prisma.session.create({
     data: {

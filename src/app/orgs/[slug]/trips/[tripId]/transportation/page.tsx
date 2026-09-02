@@ -9,10 +9,13 @@ export const metadata = { title: "Transportation" };
 
 export default async function TransportationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; tripId: string }>;
+  searchParams: Promise<{ new?: string }>;
 }) {
   const { slug, tripId } = await params;
+  const { new: startNew } = await searchParams;
   await requireTrip(tripId);
 
   const [vehicles, attendees] = await Promise.all([
@@ -74,6 +77,7 @@ export default async function TransportationPage({
 
       <TransportationBoard
         tripId={tripId}
+        startNew={startNew === "1"}
         vehicles={vehicles.map((v) => ({
           id: v.id,
           name: v.name,

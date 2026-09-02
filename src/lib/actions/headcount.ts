@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireTrip } from "@/lib/access";
+import { requireUser } from "@/lib/auth";
 import type { HeadcountScope } from "@prisma/client";
 import type { FormState } from "@/lib/actions/auth";
 
@@ -80,21 +81,40 @@ async function sessionTrip(sessionId: string) {
   return { session, ctx };
 }
 
+/**
+ * Marking one person present.
+ *
+ * This is the hottest path in the app: counting fifty students means fifty of
+ * these in about a minute, on hotel wifi, while walking. Two things keep it
+ * fast:
+ *
+ *  - Authorization is one query. The session is resolved through its trip and
+ *    the caller's organization membership in a single join rather than a
+ *    session lookup followed by a separate trip lookup.
+ *  - There is deliberately no revalidatePath. The screen already shows the
+ *    change optimistically, so re-rendering fifty rows and shipping a fresh
+ *    payload on every tap would buy nothing and cost a second per person.
+ *    Reloading the page reads the true state from the database.
+ */
 export async function toggleHeadcountRecordAction(
   sessionId: string,
   attendeeId: string,
   present: boolean,
 ): Promise<FormState> {
-  const { ctx, session } = await sessionTrip(sessionId);
+  const user = await requireUser();
 
-  await prisma.headcountRecord.updateMany({
-    where: { sessionId, attendeeId },
+  const updated = await prisma.headcountRecord.updateMany({
+    where: {
+      sessionId,
+      attendeeId,
+      session: {
+        trip: { organization: { members: { some: { userId: user.id } } } },
+      },
+    },
     data: { present, markedAt: present ? new Date() : null },
   });
 
-  revalidatePath(
-    `/orgs/${ctx.organization.slug}/trips/${session.tripId}/headcount/${sessionId}`,
-  );
+  if (updated.count === 0) return { error: "That headcount is no longer available." };
   return { ok: true };
 }
 

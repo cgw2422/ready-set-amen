@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useOptimistic, useState, useTransition } from "react";
+import { useCallback, useState } from "react";
 import {
   closeHeadcountAction,
   markAllPresentAction,
@@ -37,32 +37,58 @@ export function HeadcountScreen({
   backHref: string;
   records: Record[];
 }) {
-  const [pending, startTransition] = useTransition();
   const [confirmAll, setConfirmAll] = useState(false);
-  const [optimistic, setOptimistic] = useOptimistic(
-    records,
-    (state: Record[], change: { attendeeId: string; present: boolean } | "all" | "reset") => {
-      if (change === "all") return state.map((r) => ({ ...r, present: true }));
-      if (change === "reset") return state.map((r) => ({ ...r, present: false }));
-      return state.map((r) =>
-        r.attendeeId === change.attendeeId ? { ...r, present: change.present } : r,
-      );
-    },
-  );
+  const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const present = optimistic.filter((r) => r.present);
-  const missing = optimistic.filter((r) => !r.present);
+  /**
+   * The tally is real client state, not optimistic state.
+   *
+   * Counting fifty students is fifty taps in about a minute. Optimistic state
+   * would revert on every settled transition unless the server re-rendered the
+   * whole list each time, which cost about a second per person. Here the tap is
+   * instant, the write goes out in the background, and a write that genuinely
+   * fails is rolled back and surfaced rather than silently lost.
+   */
+  const [rows, setRows] = useState<Record[]>(records);
+  const [unsaved, setUnsaved] = useState(0);
+
+  const present = rows.filter((r) => r.present);
+  const missing = rows.filter((r) => !r.present);
   const allHere = missing.length === 0;
 
-  const toggle = (record: Record) =>
-    startTransition(async () => {
-      setOptimistic({ attendeeId: record.attendeeId, present: !record.present });
-      await toggleHeadcountRecordAction(sessionId, record.attendeeId, !record.present);
-    });
+  const setPresent = useCallback((attendeeId: string, value: boolean) => {
+    setRows((current) =>
+      current.map((r) => (r.attendeeId === attendeeId ? { ...r, present: value } : r)),
+    );
+  }, []);
+
+  const toggle = useCallback(
+    (record: Record) => {
+      const next = !record.present;
+      setPresent(record.attendeeId, next);
+      setUnsaved((n) => n + 1);
+      setSaveError(null);
+
+      void toggleHeadcountRecordAction(sessionId, record.attendeeId, next)
+        .then((result) => {
+          if (result?.error) {
+            setPresent(record.attendeeId, !next);
+            setSaveError(`${record.name} didn't save. Tap again.`);
+          }
+        })
+        .catch(() => {
+          setPresent(record.attendeeId, !next);
+          setSaveError(`${record.name} didn't save — check your signal and tap again.`);
+        })
+        .finally(() => setUnsaved((n) => Math.max(0, n - 1)));
+    },
+    [sessionId, setPresent],
+  );
 
   return (
     <div className="space-y-4">
-      <Link href={backHref} className="text-sm font-semibold text-green-brand">
+      <Link href={backHref} className="inline-flex min-h-[44px] items-center text-sm font-semibold text-green-brand">
         &lsaquo; All headcounts
       </Link>
 
@@ -73,15 +99,15 @@ export function HeadcountScreen({
       >
         <p className="text-xs font-bold uppercase tracking-wide text-white/70">{label}</p>
         <p className="font-display text-4xl font-extrabold leading-none">
-          {present.length} / {optimistic.length}
+          {present.length} / {rows.length}
         </p>
         <p className="mt-1 text-sm text-white/80">
-          {allHere
-            ? "Everyone is accounted for."
-            : `${missing.length} still missing`}
+          {allHere ? "Everyone is accounted for." : `${missing.length} still missing`}
         </p>
         <p className="mt-1 text-xs text-white/60">Started {startedAt}</p>
       </div>
+
+      {saveError ? <Alert tone="error">{saveError}</Alert> : null}
 
       {!allHere ? (
         <Alert tone="warning" title="Still missing">
@@ -90,11 +116,11 @@ export function HeadcountScreen({
       ) : null}
 
       <ul className="space-y-2">
-        {optimistic.map((record) => (
+        {rows.map((record) => (
           <li key={record.attendeeId}>
             <button
               type="button"
-              disabled={pending || closed}
+              disabled={closed}
               onClick={() => toggle(record)}
               aria-pressed={record.present}
               className={`flex min-h-[64px] w-full items-center gap-3 rounded-2xl border-2 px-4 text-left transition-colors ${
@@ -146,13 +172,12 @@ export function HeadcountScreen({
           <Button
             type="button"
             variant="secondary"
-            disabled={pending || closed}
-            onClick={() =>
-              startTransition(async () => {
-                setOptimistic("reset");
-                await resetHeadcountAction(sessionId);
-              })
-            }
+            disabled={busy || closed}
+            onClick={() => {
+              setRows((current) => current.map((r) => ({ ...r, present: false })));
+              setBusy(true);
+              void resetHeadcountAction(sessionId).finally(() => setBusy(false));
+            }}
           >
             Reset
           </Button>
@@ -162,16 +187,15 @@ export function HeadcountScreen({
               <Button
                 type="button"
                 variant="danger"
-                disabled={pending || closed}
-                onClick={() =>
-                  startTransition(async () => {
-                    setOptimistic("all");
-                    setConfirmAll(false);
-                    await markAllPresentAction(sessionId);
-                  })
-                }
+                disabled={busy || closed}
+                onClick={() => {
+                  setRows((current) => current.map((r) => ({ ...r, present: true })));
+                  setConfirmAll(false);
+                  setBusy(true);
+                  void markAllPresentAction(sessionId).finally(() => setBusy(false));
+                }}
               >
-                Yes, mark all {optimistic.length} present
+                Yes, mark all {rows.length} present
               </Button>
               <Button type="button" variant="ghost" onClick={() => setConfirmAll(false)}>
                 Cancel
@@ -181,7 +205,7 @@ export function HeadcountScreen({
             <Button
               type="button"
               variant="secondary"
-              disabled={pending || closed}
+              disabled={busy || closed}
               onClick={() => setConfirmAll(true)}
             >
               Mark all present
@@ -190,8 +214,8 @@ export function HeadcountScreen({
 
           {!closed ? (
             <form action={closeHeadcountAction.bind(null, sessionId)}>
-              <Button type="submit" disabled={pending}>
-                Save &amp; close
+              <Button type="submit" disabled={unsaved > 0}>
+                {unsaved > 0 ? "Saving…" : "Save & close"}
               </Button>
             </form>
           ) : (

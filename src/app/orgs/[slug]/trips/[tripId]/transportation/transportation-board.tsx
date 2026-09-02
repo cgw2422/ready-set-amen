@@ -49,12 +49,14 @@ export function TransportationBoard({
   tripId,
   vehicles,
   attendees,
+  startNew = false,
 }: {
   tripId: string;
   vehicles: Vehicle[];
   attendees: Attendee[];
+  startNew?: boolean;
 }) {
-  const [editing, setEditing] = useState<Vehicle | "new" | null>(null);
+  const [editing, setEditing] = useState<Vehicle | "new" | null>(startNew ? "new" : null);
   const [assigning, setAssigning] = useState<Attendee | null>(null);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [keepFamilies, setKeepFamilies] = useState(true);
@@ -185,7 +187,7 @@ export function TransportationBoard({
                           onClick={() =>
                             setAssigning(attendees.find((a) => a.id === p.id) ?? null)
                           }
-                          className="rounded-full border border-line bg-cream px-3 py-1.5 text-sm text-navy"
+                          className="min-h-[44px] rounded-full border border-line bg-cream px-3 py-1.5 text-sm text-navy"
                         >
                           {p.name}
                           {p.isLeader ? " ·  leader" : ""}
@@ -235,7 +237,7 @@ export function TransportationBoard({
                 <button
                   type="button"
                   onClick={() => setAssigning(a)}
-                  className="rounded-full border border-coral/40 bg-coral-soft px-3 py-1.5 text-sm font-semibold text-coral-deep"
+                  className="min-h-[44px] rounded-full border border-coral/40 bg-coral-soft px-3 py-1.5 text-sm font-semibold text-coral-deep"
                 >
                   {a.name}
                 </button>
@@ -299,7 +301,7 @@ function VehicleForm({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Name" required>
-            <Input name="name" required defaultValue={vehicle?.name} placeholder="Church Van 1" />
+            <Input name="name" required autoFocus defaultValue={vehicle?.name} placeholder="Church Van 1" />
           </Field>
           <Field label="Type">
             <Select name="type" defaultValue={vehicle?.type ?? "Van"}>

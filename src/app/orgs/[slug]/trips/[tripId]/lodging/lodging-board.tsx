@@ -54,12 +54,14 @@ export function LodgingBoard({
   tripId,
   rooms,
   attendees,
+  startNew = false,
 }: {
   tripId: string;
   rooms: Room[];
   attendees: Attendee[];
+  startNew?: boolean;
 }) {
-  const [editing, setEditing] = useState<Room | "new" | null>(null);
+  const [editing, setEditing] = useState<Room | "new" | null>(startNew ? "new" : null);
   const [assigning, setAssigning] = useState<Attendee | null>(null);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [separateGenders, setSeparateGenders] = useState(true);
@@ -190,7 +192,7 @@ export function LodgingBoard({
                           type="button"
                           disabled={pending}
                           onClick={() => setAssigning(attendees.find((a) => a.id === o.id) ?? null)}
-                          className="rounded-full border border-line bg-cream px-3 py-1.5 text-sm text-navy"
+                          className="min-h-[44px] rounded-full border border-line bg-cream px-3 py-1.5 text-sm text-navy"
                         >
                           {o.name}
                           {o.isLeader ? " · leader" : ""}
@@ -240,7 +242,7 @@ export function LodgingBoard({
                 <button
                   type="button"
                   onClick={() => setAssigning(a)}
-                  className="rounded-full border border-coral/40 bg-coral-soft px-3 py-1.5 text-sm font-semibold text-coral-deep"
+                  className="min-h-[44px] rounded-full border border-coral/40 bg-coral-soft px-3 py-1.5 text-sm font-semibold text-coral-deep"
                 >
                   {a.name}
                 </button>
@@ -300,7 +302,7 @@ function RoomForm({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Name or number" required>
-            <Input name="name" required defaultValue={room?.name} placeholder="Room 214" />
+            <Input name="name" required autoFocus defaultValue={room?.name} placeholder="Room 214" />
           </Field>
           <Field label="Type">
             <Select name="type" defaultValue={room?.type ?? "Hotel Room"}>

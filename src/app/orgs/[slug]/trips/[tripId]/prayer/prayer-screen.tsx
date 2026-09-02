@@ -196,7 +196,7 @@ export function PrayerScreen({
                 type="button"
                 disabled={pending}
                 onClick={() => addSuggestion(s)}
-                className="rounded-full border border-line bg-white px-3 py-1.5 text-sm text-navy-soft"
+                className="min-h-[44px] rounded-full border border-line bg-white px-3 py-1.5 text-sm text-navy-soft"
               >
                 + {s}
               </button>

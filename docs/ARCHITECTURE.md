@@ -300,11 +300,50 @@ labeled as starting points for the organization's own attorney to review.
 | 9 | Client-side trust | Every mutation re-validates with Zod on the server; capacity limits, required-field rules, and readiness are computed server-side |
 | 10 | Right to erasure | Cascade deletes from `Trip` and `Organization`; a typed-confirmation delete flow; signed waivers deleted only through that explicit flow |
 | 11 | Signature repudiation | Immutable snapshot + hash + consent text + timestamp + IP + UA; typed name required even when a drawn signature is provided |
+| 12 | XSS through waiver language | Waiver text is rendered as React nodes from a tiny formatting subset. `dangerouslySetInnerHTML` appears nowhere in `src/`, enforced by a test, and a live payload is pushed through the builder in the browser walkthrough |
+| 13 | SQL injection | Prisma parameterises everything; the one raw query (the rate limiter) uses a tagged template, tested with a `DROP TABLE` payload |
+| 14 | Bulk link disclosure | Copying forty personal signing links to one clipboard invites pasting them into a group chat, handing every parent every child's link. The primary flow is a one-at-a-time queue; bulk export is secondary, behind a disclosure and an explicit warning |
 
-Known, accepted V1 limitations (documented rather than hidden): the in-memory
-rate limiter is per-process (fine on a single instance, needs Postgres/Redis
-when horizontally scaled); there is no 2FA; there is no field-level encryption
-at rest beyond what the database provider gives (Neon encrypts at rest).
+### Rate limiting
+
+Limits live in Postgres, not in process memory, so several app instances share
+one budget. The whole check is a single atomic upsert against a fixed-window
+counter — no Redis, no transaction, one round trip:
+
+```sql
+INSERT INTO rate_limit_counters (key, "windowStart", count, "expiresAt") VALUES (…, 1, …)
+ON CONFLICT (key) DO UPDATE SET
+  count = CASE WHEN rate_limit_counters."windowStart" = … THEN count + 1 ELSE 1 END,
+  …
+RETURNING count
+```
+
+If the database is unreachable the limiter falls back to the per-process
+sliding window rather than failing open entirely.
+
+Two deliberate choices in the login limits:
+
+* **Only failed attempts spend the budget.** A successful sign-in is not an
+  attack signal, and charging for it locks out the legitimate user while barely
+  slowing an attacker. A successful login also clears that account's counter.
+* **The per-IP limit is deliberately loose (100 / 15 min) and the per-account
+  limit tight (10 / 15 min).** The account limit is the real brute-force
+  control. An entire church shares one NAT address on the building wifi, so an
+  IP limit tight enough to stop a single attacker would lock out a staff
+  meeting.
+
+### Sessions
+
+Signing in mints a new 256-bit token and **deletes the session the browser
+arrived with**, so a fixated or previously captured cookie stops working at the
+moment of login rather than lingering until it expires. Expired rows for that
+user are purged at the same time.
+
+Known, accepted V1 limitations (documented rather than hidden): fixed windows
+mean an attacker can burst across a window boundary at up to 2x the limit
+(irrelevant at these numbers, and it buys a one-query check); there is no 2FA;
+there is no field-level encryption at rest beyond what the database provider
+gives (Neon encrypts at rest).
 
 ---
 
@@ -373,7 +412,9 @@ at rest beyond what the database provider gives (Neon encrypts at rest).
 ## 7. Mobile navigation
 
 A fixed bottom tab bar inside a trip, five targets, thumb-reachable, with
-`env(safe-area-inset-bottom)` padding for iPhone:
+`env(safe-area-inset-bottom)` padding for iPhone. Its icon and button sizes are
+in **pixels, not rem**: with iOS "larger text" turned on, rem-based chrome grew
+until the five-slot bar was wider than the phone.
 
 ```
 🏠 Home      👥 People      ➕ (quick action)      ✅ Tasks      ⋯ More
@@ -381,9 +422,11 @@ A fixed bottom tab bar inside a trip, five targets, thumb-reachable, with
 
 * **Home** — trip dashboard.
 * **People** — roster.
-* **➕** — a raised primary-green action sheet with the things a leader needs
-  while standing beside a van: **Start Headcount**, **Emergency Info**,
-  **Add Attendee**, **Copy Waiver Links**, **Add Itinerary Item**.
+* **➕** — a raised primary-green Quick Actions sheet: **Add Person**,
+  **Run Headcount**, **Add Task**, **Add Itinerary Item**, **Add Vehicle**,
+  **Add Room**. Each destination carries `?new=1` and opens with the form
+  already expanded and focused, so it is two taps from anywhere in the trip to
+  a cursor in an input.
 * **Tasks** — preparation checklist (the path to the Prayer step).
 * **More** — Waivers, Forms, Payments, Transportation, Lodging, Itinerary,
   Leaders, Packet, Trip Settings.
@@ -393,8 +436,17 @@ are one tap from the dashboard *and* from the ➕ sheet, which keeps the tab bar
 at five items. On tablet/desktop the tab bar is replaced by a persistent left
 sidebar with the full section list; no feature is mobile-only or desktop-only.
 
-Touch targets are ≥44px. Headcount rows are ≥64px because they are tapped in
-motion.
+Touch targets are ≥44px, verified by `tests/accessibility.mjs` across every
+screen. Headcount rows are ≥64px because they are tapped in motion.
+
+### Accessibility
+
+Every text tone was measured against the surfaces it actually sits on. Three
+brand-derived tones failed WCAG AA for small text and were darkened
+(`navy-faint` 3.65:1 → 5.51:1, `coral-deep` 4.03:1 → 5.67:1, `gold-deep`
+2.60:1 → 5.09:1), and white-on-coral buttons (2.80:1) became navy-on-coral
+(5.75:1), which keeps the brand colour rather than darkening it. The five brand
+colours themselves are unchanged.
 
 ---
 
