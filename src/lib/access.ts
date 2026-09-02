@@ -1,0 +1,105 @@
+import { notFound } from "next/navigation";
+import { cache } from "react";
+import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
+import type { OrgRole } from "@prisma/client";
+
+/**
+ * Every authenticated read and write in the app goes through one of these.
+ * There is deliberately no helper that loads a trip or an attendee by id
+ * without resolving organization membership first (docs/ARCHITECTURE.md §5.2).
+ *
+ * `notFound()` rather than a 403 keeps the app from confirming that an id
+ * belongs to some other organization.
+ */
+
+export type OrgContext = {
+  userId: string;
+  organization: { id: string; name: string; slug: string };
+  role: OrgRole;
+};
+
+export const requireOrg = cache(async (slug: string): Promise<OrgContext> => {
+  const user = await requireUser();
+  const membership = await prisma.organizationMember.findFirst({
+    where: { userId: user.id, organization: { slug } },
+    include: { organization: { select: { id: true, name: true, slug: true } } },
+  });
+  if (!membership) notFound();
+  return {
+    userId: user.id,
+    organization: membership.organization,
+    role: membership.role,
+  };
+});
+
+export const requireOrgById = cache(async (organizationId: string): Promise<OrgContext> => {
+  const user = await requireUser();
+  const membership = await prisma.organizationMember.findFirst({
+    where: { userId: user.id, organizationId },
+    include: { organization: { select: { id: true, name: true, slug: true } } },
+  });
+  if (!membership) notFound();
+  return {
+    userId: user.id,
+    organization: membership.organization,
+    role: membership.role,
+  };
+});
+
+export type TripContext = OrgContext & {
+  trip: {
+    id: string;
+    name: string;
+    organizationId: string;
+  };
+};
+
+/** Resolves a trip only through the caller's organization membership. */
+export const requireTrip = cache(async (tripId: string): Promise<TripContext> => {
+  const user = await requireUser();
+  const trip = await prisma.trip.findFirst({
+    where: { id: tripId, organization: { members: { some: { userId: user.id } } } },
+    select: {
+      id: true,
+      name: true,
+      organizationId: true,
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          members: { where: { userId: user.id }, select: { role: true } },
+        },
+      },
+    },
+  });
+  if (!trip) notFound();
+  return {
+    userId: user.id,
+    organization: {
+      id: trip.organization.id,
+      name: trip.organization.name,
+      slug: trip.organization.slug,
+    },
+    role: trip.organization.members[0]?.role ?? "LEADER",
+    trip: { id: trip.id, name: trip.name, organizationId: trip.organizationId },
+  };
+});
+
+/** Resolves an attendee through its trip, which resolves through membership. */
+export async function requireAttendee(attendeeId: string) {
+  const user = await requireUser();
+  const attendee = await prisma.attendee.findFirst({
+    where: {
+      id: attendeeId,
+      trip: { organization: { members: { some: { userId: user.id } } } },
+    },
+  });
+  if (!attendee) notFound();
+  return attendee;
+}
+
+export function canManageOrg(role: OrgRole): boolean {
+  return role === "OWNER" || role === "ADMIN";
+}

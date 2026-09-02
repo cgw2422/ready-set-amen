@@ -1,0 +1,672 @@
+// Ready. Set. Amen. — data model
+// See docs/ARCHITECTURE.md §3 and §4 for the reasoning behind these tables.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity & tenancy
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions    Session[]
+  memberships OrganizationMember[]
+
+  @@map("users")
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  userAgent  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  city      String?
+  state     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members         OrganizationMember[]
+  trips           Trip[]
+  waiverTemplates WaiverTemplate[]
+
+  @@map("organizations")
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  LEADER
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           OrgRole  @default(LEADER)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+// ---------------------------------------------------------------------------
+// Trips
+// ---------------------------------------------------------------------------
+
+enum TripStatus {
+  PLANNING
+  READY
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+}
+
+model Trip {
+  id                String     @id @default(cuid())
+  organizationId    String
+  name              String
+  destination       String?
+  startDate         DateTime?
+  endDate           DateTime?
+  departureTime     DateTime?
+  departureLocation String?
+  returnTime        DateTime?
+  description       String?
+  status            TripStatus @default(PLANNING)
+
+  // Payment settings
+  costPerPerson       Decimal?  @db.Decimal(10, 2)
+  depositAmount       Decimal?  @db.Decimal(10, 2)
+  depositDueDate      DateTime?
+  finalPaymentDueDate DateTime?
+
+  // Readiness configuration (see docs/ARCHITECTURE.md §8)
+  readinessConfig Json?
+
+  prayerCompletedAt DateTime?
+  prayerCompletedBy String?
+  prayerNotes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization         Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  attendees            Attendee[]
+  vehicles             Vehicle[]
+  rooms                Room[]
+  itineraryItems       ItineraryItem[]
+  tasks                Task[]
+  leaderAssignments    LeaderAssignment[]
+  prayerFocuses        PrayerFocus[]
+  headcountSessions    HeadcountSession[]
+  documentRequirements DocumentRequirement[]
+  waiverRequirements   TripWaiverRequirement[]
+
+  @@index([organizationId])
+  @@map("trips")
+}
+
+// ---------------------------------------------------------------------------
+// People
+// ---------------------------------------------------------------------------
+
+enum PaymentStatus {
+  UNPAID
+  DEPOSIT_PAID
+  PARTIAL
+  PAID
+  SCHOLARSHIP
+  WAIVED
+}
+
+model Attendee {
+  id     String @id @default(cuid())
+  tripId String
+
+  firstName     String
+  lastName      String
+  preferredName String?
+  gender        String?
+  dateOfBirth   DateTime?
+  isMinor       Boolean   @default(false)
+  isLeader      Boolean   @default(false)
+
+  phone String?
+  email String?
+
+  emergencyContactName     String?
+  emergencyContactPhone    String?
+  emergencyContactRelation String?
+
+  // Sensitive: only ever selected in authenticated server code.
+  allergies             String?
+  medicalConditions     String?
+  medications           String?
+  dietaryRestrictions   String?
+  insuranceProvider     String?
+  insurancePolicyNumber String?
+  doctorName            String?
+  doctorPhone           String?
+
+  shirtSize String?
+  notes     String?
+
+  amountDue     Decimal       @default(0) @db.Decimal(10, 2)
+  amountPaid    Decimal       @default(0) @db.Decimal(10, 2)
+  paymentStatus PaymentStatus @default(UNPAID)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  trip              Trip                     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  guardians         Guardian[]
+  payments          PaymentRecord[]
+  documentStatuses  AttendeeDocumentStatus[]
+  vehicleAssignment VehicleAssignment?
+  roomAssignment    RoomAssignment?
+  waiverRecipients  WaiverRecipient[]
+  signedWaivers     SignedWaiver[]
+  headcountRecords  HeadcountRecord[]
+  leaderAssignments LeaderAssignment[]
+  itineraryItems    ItineraryItem[]
+  drivingVehicles   Vehicle[]                @relation("VehicleDriver")
+  secondaryDriving  Vehicle[]                @relation("VehicleSecondaryDriver")
+
+  @@index([tripId])
+  @@index([tripId, lastName])
+  @@map("attendees")
+}
+
+model Guardian {
+  id              String   @id @default(cuid())
+  attendeeId      String
+  name            String
+  email           String?
+  emailNormalized String?
+  phone           String?
+  relationship    String?
+  isPrimary       Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  attendee Attendee @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+
+  @@index([attendeeId])
+  @@index([emailNormalized])
+  @@map("guardians")
+}
+
+model PaymentRecord {
+  id         String   @id @default(cuid())
+  attendeeId String
+  amount     Decimal  @db.Decimal(10, 2)
+  method     String?
+  reference  String?
+  note       String?
+  receivedAt DateTime @default(now())
+  recordedBy String?
+  createdAt  DateTime @default(now())
+
+  attendee Attendee @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+
+  @@index([attendeeId])
+  @@map("payment_records")
+}
+
+// ---------------------------------------------------------------------------
+// Non-waiver document requirements
+// ---------------------------------------------------------------------------
+
+enum DocumentStatusValue {
+  MISSING
+  COMPLETE
+  NOT_REQUIRED
+}
+
+model DocumentRequirement {
+  id          String   @id @default(cuid())
+  tripId      String
+  name        String
+  description String?
+  required    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  trip     Trip                     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  statuses AttendeeDocumentStatus[]
+
+  @@index([tripId])
+  @@map("document_requirements")
+}
+
+model AttendeeDocumentStatus {
+  id            String              @id @default(cuid())
+  attendeeId    String
+  requirementId String
+  status        DocumentStatusValue @default(MISSING)
+  note          String?
+  updatedAt     DateTime            @updatedAt
+
+  attendee    Attendee            @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+  requirement DocumentRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@unique([attendeeId, requirementId])
+  @@index([requirementId])
+  @@map("attendee_document_statuses")
+}
+
+// ---------------------------------------------------------------------------
+// Waivers — see docs/ARCHITECTURE.md §4
+// ---------------------------------------------------------------------------
+
+model WaiverTemplate {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  archivedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  versions     WaiverTemplateVersion[]
+
+  @@index([organizationId])
+  @@map("waiver_templates")
+}
+
+/// Append-only. Once a version is referenced by a requirement or a signature
+/// it is never mutated. `content` holds the full section text + required field
+/// configuration; `contentHash` is sha256 of the canonical serialization.
+model WaiverTemplateVersion {
+  id            String   @id @default(cuid())
+  templateId    String
+  versionNumber Int
+  content       Json
+  contentHash   String
+  createdAt     DateTime @default(now())
+  createdBy     String?
+
+  template      WaiverTemplate          @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  requirements  TripWaiverRequirement[]
+  signedWaivers SignedWaiver[]
+
+  @@unique([templateId, versionNumber])
+  @@index([templateId])
+  @@map("waiver_template_versions")
+}
+
+model TripWaiverRequirement {
+  id           String   @id @default(cuid())
+  tripId       String
+  versionId    String
+  title        String
+  appliesToAll Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  trip       Trip                  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  version    WaiverTemplateVersion @relation(fields: [versionId], references: [id])
+  recipients WaiverRecipient[]
+
+  @@index([tripId])
+  @@index([versionId])
+  @@map("trip_waiver_requirements")
+}
+
+enum WaiverRecipientStatus {
+  NOT_SENT
+  SENT
+  VIEWED
+  SIGNED
+  NOT_REQUIRED
+  SUPERSEDED
+}
+
+enum SignerRole {
+  SELF
+  GUARDIAN
+}
+
+model WaiverRecipient {
+  id            String                @id @default(cuid())
+  requirementId String
+  attendeeId    String
+  status        WaiverRecipientStatus @default(NOT_SENT)
+  signerRole    SignerRole            @default(SELF)
+  sentAt        DateTime?
+  viewedAt      DateTime?
+  signedAt      DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  requirement  TripWaiverRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  attendee     Attendee              @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+  signingLinks WaiverSigningLink[]
+  signedWaiver SignedWaiver?
+
+  @@unique([requirementId, attendeeId])
+  @@index([attendeeId])
+  @@map("waiver_recipients")
+}
+
+/// The raw token is never stored — only sha256(token). See §4.2.
+model WaiverSigningLink {
+  id          String    @id @default(cuid())
+  recipientId String
+  tokenHash   String    @unique
+  tokenPrefix String
+  expiresAt   DateTime
+  maxUses     Int       @default(1)
+  useCount    Int       @default(0)
+  viewedAt    DateTime?
+  usedAt      DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  createdBy   String?
+
+  recipient WaiverRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId])
+  @@index([expiresAt])
+  @@map("waiver_signing_links")
+}
+
+/// Immutable. No application code path updates a SignedWaiver except to void it.
+model SignedWaiver {
+  id          String @id @default(cuid())
+  recipientId String @unique
+  attendeeId  String
+  versionId   String
+
+  /// A full copy of the document that was signed, independent of the template.
+  documentSnapshot Json
+  documentHash     String
+
+  participantNameAtSigning String
+  participantDateOfBirth   DateTime?
+
+  signerName         String
+  signerRole         SignerRole
+  signerRelationship String
+  signerEmail        String?
+  signerPhone        String?
+
+  typedSignature String
+  drawnSignature String?
+
+  signedAt  DateTime @default(now())
+  ipAddress String?
+  userAgent String?
+
+  consentToElectronicRecords Boolean
+  consentText                String
+  acknowledgements           Json
+
+  voidedAt   DateTime?
+  voidReason String?
+
+  recipient WaiverRecipient       @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  attendee  Attendee              @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+  version   WaiverTemplateVersion @relation(fields: [versionId], references: [id])
+  responses WaiverFieldResponse[]
+
+  @@index([attendeeId])
+  @@index([versionId])
+  @@map("signed_waivers")
+}
+
+model WaiverFieldResponse {
+  id             String @id @default(cuid())
+  signedWaiverId String
+  fieldKey       String
+  fieldLabel     String
+  value          String
+
+  signedWaiver SignedWaiver @relation(fields: [signedWaiverId], references: [id], onDelete: Cascade)
+
+  @@index([signedWaiverId])
+  @@map("waiver_field_responses")
+}
+
+// ---------------------------------------------------------------------------
+// Transportation
+// ---------------------------------------------------------------------------
+
+model Vehicle {
+  id                        String   @id @default(cuid())
+  tripId                    String
+  name                      String
+  type                      String   @default("Van")
+  capacity                  Int      @default(15)
+  driverAttendeeId          String?
+  secondaryDriverAttendeeId String?
+  driverName                String?
+  driverPhone               String?
+  reservedSeats             Int      @default(0)
+  notes                     String?
+  sortOrder                 Int      @default(0)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  trip            Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  driver          Attendee?           @relation("VehicleDriver", fields: [driverAttendeeId], references: [id], onDelete: SetNull)
+  secondaryDriver Attendee?           @relation("VehicleSecondaryDriver", fields: [secondaryDriverAttendeeId], references: [id], onDelete: SetNull)
+  assignments     VehicleAssignment[]
+
+  @@index([tripId])
+  @@map("vehicles")
+}
+
+model VehicleAssignment {
+  id         String   @id @default(cuid())
+  vehicleId  String
+  attendeeId String   @unique
+  seatNote   String?
+  createdAt  DateTime @default(now())
+
+  vehicle  Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  attendee Attendee @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId])
+  @@map("vehicle_assignments")
+}
+
+// ---------------------------------------------------------------------------
+// Lodging
+// ---------------------------------------------------------------------------
+
+model Room {
+  id             String   @id @default(cuid())
+  tripId         String
+  name           String
+  type           String   @default("Hotel Room")
+  capacity       Int      @default(4)
+  /// "MALE" | "FEMALE" | "ANY" | free-text group designation
+  designation    String   @default("ANY")
+  requiresLeader Boolean  @default(false)
+  notes          String?
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  trip        Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  assignments RoomAssignment[]
+
+  @@index([tripId])
+  @@map("rooms")
+}
+
+model RoomAssignment {
+  id         String   @id @default(cuid())
+  roomId     String
+  attendeeId String   @unique
+  createdAt  DateTime @default(now())
+
+  room     Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  attendee Attendee @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@map("room_assignments")
+}
+
+// ---------------------------------------------------------------------------
+// Itinerary, tasks, leaders, prayer
+// ---------------------------------------------------------------------------
+
+model ItineraryItem {
+  id                    String   @id @default(cuid())
+  tripId                String
+  date                  DateTime
+  startTime             String?
+  endTime               String?
+  title                 String
+  location              String?
+  description           String?
+  responsibleAttendeeId String?
+  notes                 String?
+  sortOrder             Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  trip        Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  responsible Attendee? @relation(fields: [responsibleAttendeeId], references: [id], onDelete: SetNull)
+
+  @@index([tripId, date])
+  @@map("itinerary_items")
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+model Task {
+  id           String     @id @default(cuid())
+  tripId       String
+  title        String
+  description  String?
+  status       TaskStatus @default(TODO)
+  dueDate      DateTime?
+  /// The single "Pray Over The Group" step. Excluded from readiness scoring.
+  isPrayerStep Boolean    @default(false)
+  isDefault    Boolean    @default(false)
+  sortOrder    Int        @default(0)
+  completedAt  DateTime?
+  completedBy  String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@map("tasks")
+}
+
+model LeaderAssignment {
+  id          String   @id @default(cuid())
+  tripId      String
+  role        String
+  attendeeId  String?
+  personName  String?
+  personPhone String?
+  notes       String?
+  required    Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  trip     Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  attendee Attendee? @relation(fields: [attendeeId], references: [id], onDelete: SetNull)
+
+  @@index([tripId])
+  @@map("leader_assignments")
+}
+
+model PrayerFocus {
+  id        String   @id @default(cuid())
+  tripId    String
+  text      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@map("prayer_focuses")
+}
+
+// ---------------------------------------------------------------------------
+// Headcount
+// ---------------------------------------------------------------------------
+
+enum HeadcountScope {
+  TRIP
+  VEHICLE
+  ROOM
+  CUSTOM
+}
+
+model HeadcountSession {
+  id            String         @id @default(cuid())
+  tripId        String
+  label         String
+  scope         HeadcountScope @default(TRIP)
+  scopeId       String?
+  startedAt     DateTime       @default(now())
+  closedAt      DateTime?
+  startedBy     String?
+  expectedCount Int            @default(0)
+
+  trip    Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  records HeadcountRecord[]
+
+  @@index([tripId])
+  @@map("headcount_sessions")
+}
+
+model HeadcountRecord {
+  id         String    @id @default(cuid())
+  sessionId  String
+  attendeeId String
+  present    Boolean   @default(false)
+  markedAt   DateTime?
+
+  session  HeadcountSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  attendee Attendee         @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, attendeeId])
+  @@index([attendeeId])
+  @@map("headcount_records")
+}

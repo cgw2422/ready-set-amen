@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Ready. Set. Amen. brand system
+   Deep Green #106B4D · Warm Coral #FF6B5C · Golden Yellow #F2B23D
+   Warm Cream #FFF6E7 · Dark Navy #0E2239
+   --------------------------------------------------------------------------- */
+
+@theme {
+  --color-green-brand: #106b4d;
+  --color-green-deep: #0c5239;
+  --color-green-soft: #e3f0ea;
+  --color-green-tint: #f0f8f4;
+
+  --color-coral: #ff6b5c;
+  --color-coral-deep: #e04a3b;
+  --color-coral-soft: #ffe6e3;
+
+  --color-gold: #f2b23d;
+  --color-gold-deep: #c88c1c;
+  --color-gold-soft: #fdf1da;
+
+  --color-cream: #fff6e7;
+  --color-cream-deep: #f7ead4;
+
+  --color-navy: #0e2239;
+  --color-navy-soft: #405166;
+  --color-navy-faint: #7b8798;
+
+  --color-line: #e7ddcb;
+  --color-surface: #ffffff;
+
+  --font-display: var(--font-league-spartan), "League Spartan", system-ui, sans-serif;
+  --font-sans: var(--font-inter), Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --radius-card: 1rem;
+}
+
+:root {
+  color-scheme: light;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-cream);
+  color: var(--color-navy);
+  font-family: var(--font-sans);
+  /* Keeps iOS Safari from zooming when a 16px input is focused. */
+  font-size: 16px;
+  overscroll-behavior-y: none;
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* Inputs must be >=16px on iOS or Safari zooms the viewport on focus. */
+input, select, textarea, button {
+  font-family: inherit;
+  font-size: 16px;
+}
+
+@utility tap-target {
+  min-height: 44px;
+}
+
+@utility card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+}
+
+/* The signature pad and headcount rows should never trigger a browser gesture. */
+@utility no-touch-gestures {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+@keyframes rsa-pop {
+  0%   { transform: scale(0.85); opacity: 0; }
+  60%  { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-pop { animation: rsa-pop 420ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+
+@keyframes rsa-rise {
+  from { transform: translateY(10px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.animate-rise { animation: rsa-rise 320ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pop, .animate-rise { animation: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   Print — every /print/* route renders as a clean document.
+   PDF in V1 is the browser's own "Save as PDF". See docs/ARCHITECTURE.md §4.5.
+   --------------------------------------------------------------------------- */
+@media print {
+  @page {
+    margin: 0.6in;
+    size: letter;
+  }
+  body {
+    background: #fff !important;
+    color: #000;
+    font-size: 11pt;
+  }
+  .print-hide { display: none !important; }
+  .print-break { break-before: page; page-break-before: always; }
+  .print-avoid-break { break-inside: avoid; page-break-inside: avoid; }
+  a[href]::after { content: ""; }
+  table { border-collapse: collapse; width: 100%; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+}
