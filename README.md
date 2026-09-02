@@ -30,7 +30,7 @@ Then sign in as `leader@example.church` / `readysetamen2026`.
 | --- | --- | --- |
 | `DATABASE_URL` | yes | Postgres connection string (Neon, Supabase, anything) |
 | `APP_URL` | yes in production | Public base URL — used to build waiver signing links |
-| `RESEND_API_KEY` + `MAIL_FROM` | no | Optional transactional email. Without them, leaders use **Copy Link**, which is the primary V1 path. |
+| `RESEND_API_KEY` + `MAIL_FROM` | no, but see below | Transactional email. Without it, leaders share waiver and invitation links with **Copy Link** — but self-service password reset cannot deliver, so an owner has to issue reset links from organization settings. |
 
 ---
 
@@ -82,12 +82,14 @@ No waiver language is ever generated for you.
 ## Tests
 
 ```bash
-npm test                                   # pure logic: readiness, auto-assign, crypto, waiver content
+npm test                                      # pure logic: readiness, auto-assign, crypto, waiver content
 TEST_DATABASE_URL=... npm run test:integrity  # waiver integrity, against a real database
 TEST_DATABASE_URL=... npm run test:security   # tenancy, injection, XSS, tokens, rate limiting
-npm run test:e2e                           # full walkthrough at 390px
-node tests/day-of-trip.mjs                 # the morning-of workflow, timed
-node tests/accessibility.mjs               # targets, contrast, keyboard, 200% text
+TEST_DATABASE_URL=... npm run test:accounts   # password reset, invitations, roles, waiver gate
+npm run test:e2e                              # full walkthrough at 390px
+node tests/day-of-trip.mjs                    # the morning-of workflow, timed
+node tests/accessibility.mjs                  # targets, contrast, keyboard, 200% text
+node tests/accounts-e2e.mjs                   # reset + invitations in the browser (dev server)
 ```
 
 The browser suites need a running server; point them with `E2E_BASE_URL`.
@@ -100,6 +102,9 @@ The browser suites need a running server; point them with `E2E_BASE_URL`.
   step, so slow paths show up as numbers.
 * **Accessibility** measures touch targets, computes WCAG contrast ratios,
   tabs through forms, and re-renders at 200% text.
+* **Accounts** proves reset tokens expire, cannot be replayed, and take every
+  session down with them; and that invitations are single use, expiring and
+  revocable.
 
 ---
 

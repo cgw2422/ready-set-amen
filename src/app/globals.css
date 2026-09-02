@@ -132,3 +132,17 @@ label:has(> input[type="radio"]) {
   thead { display: table-header-group; }
   tr { break-inside: avoid; }
 }
+
+/* Visually hidden but announced — used where a brand mark stands in visually
+   for a heading that assistive technology still needs to hear. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

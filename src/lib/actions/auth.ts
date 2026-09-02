@@ -51,7 +51,11 @@ export async function signupAction(_prev: FormState, formData: FormData): Promis
   });
 
   await createSession(user.id, await userAgent());
-  redirect("/onboarding");
+
+  // Arriving from an invitation: go back and accept it rather than dropping the
+  // person into "create your organization".
+  const invite = String(formData.get("invite") ?? "").trim();
+  redirect(invite ? `/invite/${encodeURIComponent(invite)}` : "/onboarding");
 }
 
 const loginSchema = z.object({
@@ -114,6 +118,9 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
   await prisma.rateLimitCounter.deleteMany({ where: { key: acctKey } }).catch(() => undefined);
 
   await createSession(user.id, await userAgent());
+
+  const invite = String(formData.get("invite") ?? "").trim();
+  if (invite) redirect(`/invite/${encodeURIComponent(invite)}`);
 
   const membership = await prisma.organizationMember.findFirst({
     where: { userId: user.id },

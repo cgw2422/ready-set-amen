@@ -109,7 +109,9 @@ export default async function TripDashboard({
           <div className="relative flex justify-center">
             <Wordmark size="md" />
           </div>
-          <p className="mt-5 font-display text-xl font-extrabold">You&rsquo;re ready to go.</p>
+          <p className="mt-5 font-display text-xl font-extrabold">
+            <span className="sr-only">Ready. Set. Amen. </span>You&rsquo;re ready to go.
+          </p>
           <p className="mt-1 text-sm text-white/70">
             Prayed over on {formatDate(trip.prayerCompletedAt)}.
           </p>

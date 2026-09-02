@@ -31,11 +31,15 @@ Open the app service → **Variables**:
 | `DATABASE_URL` | **yes** | `${{Postgres.DATABASE_URL}}` — type it exactly; it is a reference, not a literal |
 | `SEED_DEMO_DATA` | no | `true` — loads the 50-person demo trip so you can test immediately. **Delete it after your first look.** |
 | `APP_URL` | no | Your public URL, e.g. `https://your-app.up.railway.app`. Leave unset and the app uses Railway's `RAILWAY_PUBLIC_DOMAIN`; set it explicitly once you add a custom domain, because waiver links are built from it. |
-| `RESEND_API_KEY` | no | Optional transactional email. Without it, leaders use Copy Link, which is the primary flow. |
-| `MAIL_FROM` | no | Required only if `RESEND_API_KEY` is set, e.g. `Ready Set Amen <trips@yourchurch.org>` |
+| `RESEND_API_KEY` | recommended | Transactional email. Waivers and invitations work fine without it via Copy Link — but **self-service password reset needs it to deliver**. Without email, an owner issues reset links from organization settings instead. |
+| `MAIL_FROM` | with the above | e.g. `Ready Set Amen <trips@yourchurch.org>` |
 
 Nothing else is needed. There is no auth vendor, no e-signature vendor, no SMS,
 and no AI service to configure — `DATABASE_URL` is the only hard requirement.
+
+**On email:** Resend's free tier covers a single church comfortably and is the
+only optional dependency. Set it if you can; the app degrades honestly without
+it rather than pretending an email was sent.
 
 ## 4. Generate the public domain
 

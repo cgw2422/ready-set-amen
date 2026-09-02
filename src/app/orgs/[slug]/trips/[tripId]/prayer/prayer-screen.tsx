@@ -65,7 +65,9 @@ export function PrayerScreen({
           <div className="relative flex justify-center">
             <Wordmark size="lg" />
           </div>
-          <p className="mt-6 font-display text-2xl font-extrabold">You&rsquo;re ready to go.</p>
+          <h1 className="mt-6 font-display text-2xl font-extrabold">
+            <span className="sr-only">Ready. Set. Amen. </span>You&rsquo;re ready to go.
+          </h1>
           <p className="mt-2 text-sm text-white/70">
             {tripName} was covered in prayer on {formatDate(new Date(completedAt))}.
           </p>

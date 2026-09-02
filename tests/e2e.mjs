@@ -243,6 +243,26 @@ log("Production hardening");
   check("nosniff header present", headers["x-content-type-options"] === "nosniff");
   check("clickjacking blocked", headers["x-frame-options"] === "DENY");
 
+  // Password reset must never hand a token to the page in production.
+  await page.goto(`${BASE}/forgot-password`);
+  await page.fill('input[name="email"]', "leader@example.church");
+  await page.click('button:has-text("Send reset link")');
+  await page.waitForSelector("text=Check your email", { timeout: 30000 });
+  const resetPage = await page.textContent("main");
+  check(
+    "a reset request is answered without confirming the account exists",
+    resetPage.includes("If that email address has a Ready Set Amen account"),
+  );
+  check(
+    "no reset link is exposed in the production UI",
+    !(await page.$('input[aria-label="Password reset link"]')) &&
+      !/reset-password\/[A-Za-z0-9_-]{20,}/.test(resetPage),
+  );
+  check(
+    "and the development-only notice is absent in production",
+    !resetPage.includes("Development mode"),
+  );
+
   const signHeaders = (await context.request.get(`${BASE}/sign/${"b".repeat(43)}`)).headers();
   check("signing pages are not cached", (signHeaders["cache-control"] ?? "").includes("no-store"));
   check("signing pages are not indexed", (signHeaders["x-robots-tag"] ?? "").includes("noindex"));

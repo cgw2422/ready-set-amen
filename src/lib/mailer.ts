@@ -77,3 +77,48 @@ export function waiverInviteMessage(params: {
     ].join("\n"),
   };
 }
+
+export function passwordResetMessage(params: {
+  to: string;
+  firstName: string;
+  url: string;
+}): MailMessage {
+  return {
+    to: params.to,
+    subject: "Reset your Ready Set Amen password",
+    text: [
+      `Hi ${params.firstName},`,
+      ``,
+      `Someone asked to reset the password for your Ready Set Amen account.`,
+      `If that was you, open this link within 30 minutes:`,
+      params.url,
+      ``,
+      `Using it will sign you out everywhere and let you choose a new password.`,
+      ``,
+      `If it wasn't you, you can ignore this email — nothing has changed.`,
+    ].join("\n"),
+  };
+}
+
+export function invitationMessage(params: {
+  to: string;
+  organizationName: string;
+  inviterName: string;
+  url: string;
+}): MailMessage {
+  return {
+    to: params.to,
+    subject: `${params.inviterName} invited you to help lead trips for ${params.organizationName}`,
+    text: [
+      `Hi,`,
+      ``,
+      `${params.inviterName} has invited you to join ${params.organizationName} on Ready Set Amen,`,
+      `where your team plans and runs church trips.`,
+      ``,
+      `Accept the invitation here:`,
+      params.url,
+      ``,
+      `This link is personal to you and expires in 14 days.`,
+    ].join("\n"),
+  };
+}

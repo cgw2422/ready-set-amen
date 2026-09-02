@@ -18,6 +18,20 @@ export async function createWaiverTemplateAction(
   formData: FormData,
 ): Promise<FormState> {
   const ctx = await requireOrg(orgSlug);
+
+  // Server-side gate: a church cannot create its first waiver until an owner has
+  // acknowledged that the language is theirs to get right.
+  const organization = await prisma.organization.findUniqueOrThrow({
+    where: { id: ctx.organization.id },
+    select: { waiverTermsAcceptedAt: true },
+  });
+  if (!organization.waiverTermsAcceptedAt) {
+    return {
+      error:
+        "Your organization owner needs to acknowledge the waiver responsibility notice before creating a waiver.",
+    };
+  }
+
   const name = String(formData.get("name") ?? "").trim();
   if (name.length < 2) return { error: "Give this waiver a name you'll recognize later." };
 

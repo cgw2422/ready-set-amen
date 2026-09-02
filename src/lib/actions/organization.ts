@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { canManageOrg, requireOrg } from "@/lib/access";
+import { isOwner, requireOrg } from "@/lib/access";
 import type { FormState } from "@/lib/actions/auth";
 
 const schema = z.object({
@@ -18,8 +18,8 @@ export async function updateOrganizationAction(
   formData: FormData,
 ): Promise<FormState> {
   const ctx = await requireOrg(slug);
-  if (!canManageOrg(ctx.role)) {
-    return { error: "Only an owner or admin can change these details." };
+  if (!isOwner(ctx.role)) {
+    return { error: "Only the organization owner can change these details." };
   }
 
   const parsed = schema.safeParse({

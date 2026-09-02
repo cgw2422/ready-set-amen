@@ -88,9 +88,22 @@ User ──< Session
 * `Organization` is the tenancy boundary. **Every** authorization check in the
   app resolves to "does this user have an `OrganizationMember` row for the
   organization that owns this trip?"
-* `OrganizationMember.role` is `OWNER | ADMIN | LEADER`. V1 deliberately keeps
+* `OrganizationMember.role` is `OWNER | LEADER` in practice (the enum retains
+  `ADMIN` so old rows keep parsing; nothing creates it). V1 deliberately keeps
   this coarse — the spec forbids "complicated permissions". Emergency/medical
   data requires any authenticated member of the owning organization.
+
+  | | Owner | Leader |
+  | --- | --- | --- |
+  | Trips, people, waivers, payments, logistics | ✅ | ✅ |
+  | Invite / remove leaders | ✅ | — |
+  | Transfer ownership | ✅ | — |
+  | Edit organization details | ✅ | — |
+  | Acknowledge waiver responsibility | ✅ | — |
+  | Delete the organization | ✅ | — |
+
+  That is the whole model. There is no per-trip role, no per-feature toggle,
+  and no way to make a leader "almost an owner".
 * `Session` stores `tokenHash` (SHA-256 of the cookie value), never the token.
 
 ### People
@@ -331,6 +344,52 @@ Two deliberate choices in the login limits:
   control. An entire church shares one NAT address on the building wifi, so an
   IP limit tight enough to stop a single attacker would lock out a staff
   meeting.
+
+### Password reset
+
+Reset tokens follow the same discipline as waiver signing links: 256 bits of
+entropy, stored only as `sha256(token)`, single use, and short lived (30
+minutes, because they sit in an inbox). Requesting a new link invalidates the
+previous one, and **completing a reset deletes every session for that account**
+— if the reset was prompted by a compromise, leaving old devices signed in
+would defeat the point.
+
+The request endpoint is an unavoidable account-existence oracle unless it is
+built carefully, so every path — unknown address, valid address, malformed
+address, rate limited — returns the identical response and identical wording.
+
+Delivery has three cases:
+
+* **Email configured** — the link is emailed and nothing is shown on screen.
+* **No email, not production** — the link is shown on the page, clearly marked
+  as a development-only affordance, so a self-hosted developer is not locked
+  out.
+* **No email, production** — the link is neither displayed nor logged. An owner
+  can generate one for a team member from organization settings, which is the
+  recovery path that always works.
+
+### Leader invitations
+
+Deliberately small: invite by email, see who is pending, revoke, remove. Same
+token discipline again — hashed at rest, single use, 14-day expiry, revocable —
+and re-inviting an address kills the earlier link. Accepting always creates a
+`LEADER`; there is no way to invite an owner. Ownership moves only through an
+explicit transfer, which demotes the current owner and promotes the target in
+one transaction so the organization is never ownerless and never has two
+owners.
+
+If email is not configured the owner copies the link, exactly like waiver
+links.
+
+### Waiver responsibility acknowledgement
+
+Before an organization's first waiver template exists, an owner must
+acknowledge, once, that the waiver language is the church's responsibility and
+should be reviewed by their own legal counsel. The acknowledgement records who
+accepted, when, and **the exact wording they accepted**, so changing the
+sentence later does not retroactively rewrite what a church agreed to. It is
+enforced in three places — the hidden button, the `/waivers/new` route, and the
+create action itself — and never shown again once accepted.
 
 ### Sessions
 

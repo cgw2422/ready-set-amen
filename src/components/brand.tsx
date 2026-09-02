@@ -1,6 +1,13 @@
 import Link from "next/link";
 
-/** The stacked READY. SET. AMEN. wordmark. */
+/**
+ * The stacked READY. SET. AMEN. wordmark.
+ *
+ * This is a logotype, not body text: WCAG exempts brand marks from contrast
+ * requirements, and it is hidden from assistive technology so screen readers
+ * hear the page's real heading instead of three shouted words. Every place it
+ * appears must therefore provide its own accessible heading.
+ */
 export function Wordmark({
   size = "md",
   className = "",
@@ -15,7 +22,10 @@ export function Wordmark({
   }[size];
 
   return (
-    <span className={`inline-flex flex-col items-start gap-1 font-display font-extrabold uppercase leading-none ${className}`}>
+    <span
+      aria-hidden="true"
+      className={`inline-flex flex-col items-start gap-1 font-display font-extrabold uppercase leading-none ${className}`}
+    >
       <span className={`bg-green-brand text-cream ${scale} -rotate-2 rounded-sm`}>Ready.</span>
       <span className={`bg-coral text-white ${scale} rotate-1 rounded-sm`}>Set.</span>
       <span className={`bg-gold text-navy ${scale} -rotate-1 rounded-sm`}>Amen.</span>

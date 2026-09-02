@@ -119,6 +119,14 @@ async function main() {
       slug,
       city: "Franklin",
       state: "TN",
+      // The demo church has already acknowledged the waiver responsibility
+      // notice, so the seeded trip has a working waiver to click through.
+      waiverTermsAcceptedAt: new Date(),
+      waiverTermsAcceptedBy: user.id,
+      waiverTermsText:
+        "Ready Set Amen provides tools to create and collect electronic waivers. Your " +
+        "church is responsible for the waiver language you use and should have it " +
+        "reviewed by appropriate legal counsel.",
       members: { create: { userId: user.id, role: "OWNER" } },
     },
   });

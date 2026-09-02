@@ -103,3 +103,19 @@ export async function requireAttendee(attendeeId: string) {
 export function canManageOrg(role: OrgRole): boolean {
   return role === "OWNER" || role === "ADMIN";
 }
+
+export function isOwner(role: OrgRole): boolean {
+  return role === "OWNER";
+}
+
+/**
+ * Owner-only actions: managing leaders, ownership, the waiver acknowledgement,
+ * and deleting the organization. Everything else about running trips is open to
+ * any member — there is deliberately no permissions matrix
+ * (docs/ARCHITECTURE.md §10).
+ */
+export async function requireOrgOwner(slug: string): Promise<OrgContext> {
+  const ctx = await requireOrg(slug);
+  if (!isOwner(ctx.role)) notFound();
+  return ctx;
+}

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { requireOrg } from "@/lib/access";
+import { isOwner, requireOrg } from "@/lib/access";
 import { formatDate } from "@/lib/format";
 import { LEGAL_DISCLAIMER } from "@/lib/waiver-content";
+import { WaiverTermsGate } from "./waiver-terms-gate";
 import { Alert, Badge, Card, EmptyState, LinkButton } from "@/components/ui";
 import { LogoLockup } from "@/components/brand";
 import { OrgMenu } from "@/components/org-menu";
@@ -17,6 +18,12 @@ export default async function WaiverLibraryPage({
 }) {
   const { slug } = await params;
   const ctx = await requireOrg(slug);
+
+  const organization = await prisma.organization.findUniqueOrThrow({
+    where: { id: ctx.organization.id },
+    select: { waiverTermsAcceptedAt: true },
+  });
+  const needsAcknowledgement = organization.waiverTermsAcceptedAt === null;
 
   const templates = await prisma.waiverTemplate.findMany({
     where: { organizationId: ctx.organization.id },
@@ -55,19 +62,31 @@ export default async function WaiverLibraryPage({
               Reusable waivers you can apply to any trip.
             </p>
           </div>
-          <LinkButton href={`/orgs/${slug}/waivers/new`}>New waiver</LinkButton>
+          {needsAcknowledgement ? null : (
+            <LinkButton href={`/orgs/${slug}/waivers/new`}>New waiver</LinkButton>
+          )}
         </div>
 
-        <div className="mt-5">
-          <Alert tone="warning">{LEGAL_DISCLAIMER}</Alert>
-        </div>
+        {needsAcknowledgement ? (
+          <div className="mt-5">
+            <WaiverTermsGate slug={slug} isOwner={isOwner(ctx.role)} />
+          </div>
+        ) : (
+          <div className="mt-5">
+            <Alert tone="warning">{LEGAL_DISCLAIMER}</Alert>
+          </div>
+        )}
 
         {templates.length === 0 ? (
           <div className="mt-6">
             <EmptyState
               title="No waivers yet."
               description="Create a waiver with your church's own approved language. Ready Set Amen never writes legal language for you."
-              action={<LinkButton href={`/orgs/${slug}/waivers/new`}>Create a waiver</LinkButton>}
+              action={
+                needsAcknowledgement ? undefined : (
+                  <LinkButton href={`/orgs/${slug}/waivers/new`}>Create a waiver</LinkButton>
+                )
+              }
             />
           </div>
         ) : (

@@ -23,8 +23,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  sessions    Session[]
-  memberships OrganizationMember[]
+  sessions            Session[]
+  memberships         OrganizationMember[]
+  passwordResetTokens PasswordResetToken[]
 
   @@map("users")
 }
@@ -46,21 +47,33 @@ model Session {
 }
 
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  city      String?
-  state     String?
+  id    String  @id @default(cuid())
+  name  String
+  slug  String  @unique
+  city  String?
+  state String?
+
+  /// Set once, by an owner, before the organization's first waiver template is
+  /// created. Recorded rather than re-prompted so it never nags in normal use.
+  waiverTermsAcceptedAt DateTime?
+  waiverTermsAcceptedBy String?
+  waiverTermsText       String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   members         OrganizationMember[]
   trips           Trip[]
   waiverTemplates WaiverTemplate[]
+  invitations     OrganizationInvitation[]
 
   @@map("organizations")
 }
 
+/// Deliberately coarse (docs/ARCHITECTURE.md §10): there is no permissions
+/// matrix. OWNER can manage the organization itself — leaders, ownership,
+/// waiver terms, deletion. Everyone else manages trips and trip data.
+/// ADMIN is retained only so existing rows keep parsing; nothing creates it.
 enum OrgRole {
   OWNER
   ADMIN
@@ -80,6 +93,50 @@ model OrganizationMember {
   @@unique([organizationId, userId])
   @@index([userId])
   @@map("organization_members")
+}
+
+/// Password reset. Only sha256(token) is stored, so a database leak does not
+/// hand over working reset links. Single use, short lived, and using one
+/// invalidates every session the account has.
+model PasswordResetToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+  requestedIp String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+/// A leader invitation. Same token discipline as waiver signing links and
+/// password resets: 256 bits of entropy, stored hashed, single use, expiring,
+/// revocable.
+model OrganizationInvitation {
+  id               String    @id @default(cuid())
+  organizationId   String
+  email            String
+  emailNormalized  String
+  role             OrgRole   @default(LEADER)
+  tokenHash        String    @unique
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  acceptedByUserId String?
+  revokedAt        DateTime?
+  invitedByUserId  String
+  createdAt        DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([emailNormalized])
+  @@index([expiresAt])
+  @@map("organization_invitations")
 }
 
 // ---------------------------------------------------------------------------
