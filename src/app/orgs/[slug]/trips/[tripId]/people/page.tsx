@@ -163,7 +163,10 @@ export default async function PeoplePage({
                     {initials(a)}
                   </span>
 
-                  <span className="min-w-0 flex-1">
+                  {/* basis-40, not flex-1: with a basis of 0 a long badge row on the
+                      same flex line squeezes this column down to a single pixel and
+                      the name collapses into a vertical stack of letters. */}
+                  <span className="min-w-0 grow basis-40">
                     <span className="flex flex-wrap items-center gap-x-2">
                       <span className="font-semibold text-navy">{displayName(a)}</span>
                       {a.isMinor ? <Badge tone="gold">Minor{age !== null ? ` · ${age}` : ""}</Badge> : null}

@@ -1,8 +1,8 @@
 # Deploying Ready. Set. Amen. to Railway
 
 Everything in the repo is already configured for Railway — `railway.json`,
-the boot sequence, the health check, `$PORT` binding, and demo data. What is
-left is the part that needs your Railway account.
+the boot sequence, the health check, and `$PORT` binding. What is left is the
+part that needs your Railway account.
 
 **Time: about 5 minutes.**
 
@@ -29,7 +29,6 @@ Open the app service → **Variables**:
 | Variable | Required | Value |
 | --- | --- | --- |
 | `DATABASE_URL` | **yes** | `${{Postgres.DATABASE_URL}}` — type it exactly; it is a reference, not a literal |
-| `SEED_DEMO_DATA` | no | `true` — loads the 50-person demo trip so you can test immediately. **Delete it after your first look.** |
 | `APP_URL` | no | Your public URL, e.g. `https://your-app.up.railway.app`. Leave unset and the app uses Railway's `RAILWAY_PUBLIC_DOMAIN`; set it explicitly once you add a custom domain, because waiver links are built from it. |
 | `RESEND_API_KEY` | recommended | Transactional email. Waivers and invitations work fine without it via Copy Link — but **self-service password reset needs it to deliver**. Without email, an owner issues reset links from organization settings instead. |
 | `MAIL_FROM` | with the above | e.g. `Ready Set Amen <trips@yourchurch.org>` |
@@ -54,14 +53,13 @@ Deployments → **Redeploy**. A healthy boot logs, in order:
 
 ```
 → Applying database migrations
-→ Loading demo data (SEED_DEMO_DATA is set)
-Seeded.
-  Sign in at https://<your-domain>/login
-  Email:    leader@example.church
-  Password: readysetamen2026
 → Starting Ready. Set. Amen. on 0.0.0.0:8080
 ✓ Ready
 ```
+
+Boot does two things and no more: migrate, then serve. It never writes demo or
+sample data — see [the demo guide](./DEMO.md) if you want the showcase
+organization, which is created deliberately with a command you run.
 
 Confirm it with `https://<your-domain>/api/health`, which should return:
 
@@ -69,31 +67,29 @@ Confirm it with `https://<your-domain>/api/health`, which should return:
 { "status": "ok", "database": "connected" }
 ```
 
-## 6. Turn the seed off
+## 6. Create your account
 
-Once you have looked around, **delete the `SEED_DEMO_DATA` variable**. While it
-is set, every deploy rebuilds the demo organization. It only ever touches the
-organization with slug `grace-community-demo`, so your real trips are never
-affected — but there is no reason to keep reloading it.
+Open `https://<your-domain>/signup` and create the first owner account for your
+church. Nothing is pre-loaded, so this account and its organization are the only
+things in the database.
 
 Optionally set `APP_URL` to your final domain (especially if you add a custom
 domain later, since signing links must point at the domain parents will open).
 
 ---
 
-## Demo login
+## The demo organization
 
-```
-https://<your-domain>/login
-Email:    leader@example.church
-Password: readysetamen2026
+There is a permanent showcase church — **Ready Set Amen Demo Church** with an
+**Ohio Youth Convention** trip of 50 fictional people, sitting at 91% ready with
+a real punch list still to work through. It is not created by deploying; you
+create it once, on purpose:
+
+```bash
+DEMO_PASSWORD='<a strong password you choose>' npm run demo:seed
 ```
 
-That account owns **Grace Community Church** with a **Summer Mission Trip**:
-50 people (42 students, 8 leaders), families with several children on the same
-trip, a real waiver template with 16 signed and 25 not yet sent, 7 vehicles,
-14 rooms, four days of schedule, partial payments, medical and allergy records,
-and a preparation checklist.
+Full instructions, the reset command, and what is in it: **[docs/DEMO.md](./DEMO.md)**.
 
 ## Testing the parent waiver flow from a phone
 
@@ -143,5 +139,7 @@ explicitly to your domain.
 Session cookies are `Secure` in production, so the app must be reached over
 `https://`. Use the generated Railway domain, not a raw IP or `http://`.
 
-**Demo data came back after a deploy.**
-`SEED_DEMO_DATA` is still set. Delete the variable.
+**I want the sample trip back the way it started.**
+Run `DEMO_PASSWORD='…' npm run demo:reset`. It rebuilds only the demo
+organization; every real church in the database is untouched. See
+[docs/DEMO.md](./DEMO.md).

@@ -648,6 +648,44 @@ Called out and deliberately not built:
 
 ---
 
+## 11a. The demo organization
+
+The showcase church is deliberately *not* an architectural feature. It is one
+`Organization` row created by `src/lib/demo/seed.ts` using the same Prisma
+models, the same `issueSigningLink` / `recordSignature` path, and the same
+authorization checks as any customer. Adding it required exactly one schema
+change:
+
+```prisma
+isDemo Boolean @default(false)
+```
+
+That column does one job: `deleteDemoOrganization()` looks the organization up
+by slug, refuses to continue unless `isDemo === true`, and only then deletes by
+id. It is never selected into a page's props, never rendered, never sent over
+the wire, and never branches application behaviour. A demo that took a different
+code path would prove nothing about the product, and a demo that could be reset
+through HTTP would be an unauthenticated delete endpoint — so reset lives only
+in `scripts/demo.ts`, behind shell access.
+
+The demo owner's password comes from `DEMO_PASSWORD` in the environment, or is
+generated and printed once to the terminal. It is stored as a scrypt hash like
+every other account, and `npm run demo:password` deletes every session for that
+user so a shared password can be revoked.
+
+The trip is seeded ten weeks out rather than on a fixed date: a permanent demo
+pinned to a calendar date eventually shows a trip that already happened, which
+turns a dashboard of live work into a museum piece.
+
+One subtlety worth recording, because it broke first: signing a waiver copies
+the emergency contact from the signer's answers onto the attendee. The two
+attendees the demo deliberately leaves without an emergency contact therefore
+have to be among the four whose waiver is still outstanding, or seeding silently
+resolves its own punch-list item. `seedDemoOrganization` chooses the unsigned
+set from those attendees first, and `tests/demo.test.ts` asserts it.
+
+---
+
 ## 12. Non-goals restated
 
 No native apps. No AI. No SMS. No chat. No social graph. No church membership

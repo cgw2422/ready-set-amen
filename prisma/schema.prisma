@@ -53,6 +53,12 @@ model Organization {
   city  String?
   state String?
 
+  /// Marks the showcase organization. Internal only — never selected into a
+  /// page's props, never shown in the UI, and never used to change behaviour:
+  /// the demo runs the same code paths as a real church. Its only job is to be
+  /// the guard that destructive demo tooling checks before it deletes anything.
+  isDemo Boolean @default(false)
+
   /// Set once, by an owner, before the organization's first waiver template is
   /// created. Recorded rather than re-prompted so it never nags in normal use.
   waiverTermsAcceptedAt DateTime?
@@ -67,6 +73,7 @@ model Organization {
   waiverTemplates WaiverTemplate[]
   invitations     OrganizationInvitation[]
 
+  @@index([isDemo])
   @@map("organizations")
 }
 

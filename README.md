@@ -36,8 +36,9 @@ Then sign in as `leader@example.church` / `readysetamen2026`.
 
 ## Deploy
 
-One-click-ish on Railway: Postgres, migrations on boot, `$PORT` binding, a
-health check, and optional demo data are all pre-configured.
+One-click-ish on Railway: Postgres, migrations on boot, `$PORT` binding, and a
+health check are all pre-configured. Boot migrates and serves; it never writes
+sample data.
 See **[`docs/DEPLOY-RAILWAY.md`](docs/DEPLOY-RAILWAY.md)** — about five minutes.
 
 ## Stack
@@ -79,6 +80,24 @@ No waiver language is ever generated for you.
 
 ---
 
+## The demo church
+
+A permanent showcase organization — 50 fictional people on a youth convention
+trip, 91% ready, with a real punch list still on the dashboard. It is created by
+a command, never by a deploy:
+
+```bash
+DEMO_PASSWORD='a strong password you choose' npm run demo:seed
+npm run demo:status
+DEMO_PASSWORD='…' npm run demo:reset          # rebuilds only the demo, never a real church
+```
+
+It runs through the same authorization checks and the same waiver signing path
+as any real church, and every person in it is invented.
+See **[`docs/DEMO.md`](docs/DEMO.md)**.
+
+---
+
 ## Tests
 
 ```bash
@@ -86,6 +105,7 @@ npm test                                      # pure logic: readiness, auto-assi
 TEST_DATABASE_URL=... npm run test:integrity  # waiver integrity, against a real database
 TEST_DATABASE_URL=... npm run test:security   # tenancy, injection, XSS, tokens, rate limiting
 TEST_DATABASE_URL=... npm run test:accounts   # password reset, invitations, roles, waiver gate
+TEST_DATABASE_URL=... npm run test:demo       # demo isolation, reset safety, signing security
 npm run test:e2e                              # full walkthrough at 390px
 node tests/day-of-trip.mjs                    # the morning-of workflow, timed
 node tests/accessibility.mjs                  # targets, contrast, keyboard, 200% text
