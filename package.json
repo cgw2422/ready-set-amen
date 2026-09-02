@@ -15,7 +15,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
-    "test": "node --test --import tsx tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "test:e2e": "node tests/e2e.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -33,6 +34,7 @@
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "playwright": "^1.62.1",
     "postcss": "^8.5.1",
     "prisma": "^6.3.1",
     "tailwindcss": "^4.0.0",

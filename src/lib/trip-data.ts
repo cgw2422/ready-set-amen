@@ -33,7 +33,7 @@ export async function loadTripReadiness(tripId: string): Promise<{
     itineraryItems: number;
   };
 }> {
-  const [trip, attendees, waiverRecipients, docStatuses, vehicles, rooms, leaders, tasks, itineraryCount] =
+  const [trip, attendees, waiverRecipients, requiredDocuments, vehicles, rooms, leaders, tasks, itineraryCount] =
     await Promise.all([
       prisma.trip.findUniqueOrThrow({
         where: { id: tripId },
@@ -62,9 +62,9 @@ export async function loadTripReadiness(tripId: string): Promise<{
         where: { requirement: { tripId } },
         select: { status: true },
       }),
-      prisma.attendeeDocumentStatus.findMany({
-        where: { requirement: { tripId, required: true } },
-        select: { status: true },
+      prisma.documentRequirement.findMany({
+        where: { tripId, required: true },
+        select: { id: true, statuses: { select: { status: true } } },
       }),
       prisma.vehicle.findMany({
         where: { tripId },
@@ -130,10 +130,21 @@ export async function loadTripReadiness(tripId: string): Promise<{
     viewed: waiverRecipients.filter((r) => r.status === "VIEWED").length,
   };
 
-  const forms = {
-    required: docStatuses.filter((d) => d.status !== "NOT_REQUIRED").length,
-    complete: docStatuses.filter((d) => d.status === "COMPLETE").length,
-  };
+  // Every required document is expected from every attendee. A status row only
+  // exists once a leader taps a cell, so the denominator is derived from the
+  // roster rather than from the rows that happen to exist — otherwise a form
+  // nobody has touched would silently read as 100% complete.
+  const forms = requiredDocuments.reduce(
+    (totals, requirement) => {
+      const notRequired = requirement.statuses.filter((s) => s.status === "NOT_REQUIRED").length;
+      const complete = requirement.statuses.filter((s) => s.status === "COMPLETE").length;
+      return {
+        required: totals.required + Math.max(0, attendees.length - notRequired),
+        complete: totals.complete + complete,
+      };
+    },
+    { required: 0, complete: 0 },
+  );
 
   const input: ReadinessInput = {
     config: (trip.readinessConfig as ReadinessConfig | null) ?? {},
