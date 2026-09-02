@@ -24,7 +24,13 @@ function check(label, condition) {
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 // iPhone-sized viewport: this app is mobile-first and must work at 390px.
-const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+const PHONE = {
+  viewport: { width: 390, height: 844 },
+  hasTouch: true,
+  isMobile: true,
+  ignoreHTTPSErrors: true,
+};
+const context = await browser.newContext(PHONE);
 const page = await context.newPage();
 page.on("pageerror", (e) => { console.log("  ! page error:", e.message); failures += 1; });
 
@@ -56,16 +62,30 @@ log("Waivers: generate a signing link");
 await page.goto(`${tripUrl}/waivers`);
 await page.waitForSelector("text=Student Ministry Release 2026");
 await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+// Read the counts off the page first so the assertions hold on a re-run,
+// where some waivers are already signed from a previous pass.
+const outstandingBefore = Number(
+  (await page.textContent("body")).match(/Outstanding\s*(\d+)/)?.[1] ?? "0",
+);
+const signedBefore = Number(
+  (await page.textContent("body")).match(/(\d+)\s*\/\s*42\s*signed/)?.[1] ?? "0",
+);
 await page.click('button:has-text("Copy links for all")');
 await page.waitForSelector("textarea", { timeout: 60000 });
 const linkBlob = await page.inputValue("textarea");
 const firstLine = linkBlob.split("\n")[0];
 const signUrl = firstLine.split(": ").slice(1).join(": ").trim();
-check("bulk copy produced a link for every unsigned person", linkBlob.split("\n").length === 42);
+check(
+  `bulk copy produced a link for every unsigned person (${linkBlob.split("\n").length} of ${outstandingBefore})`,
+  linkBlob.split("\n").length === outstandingBefore,
+);
 check("a signing link was issued", /\/sign\/[A-Za-z0-9_-]{43}$/.test(signUrl));
 
 log("Sign the waiver as a parent, with no account");
-const guest = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+// A brand-new context: no cookies, no storage, nothing carried over from the
+// leader's session. This is a parent opening a text message on their phone.
+const guest = await browser.newContext(PHONE);
+check("the signer's browser starts with no cookies at all", (await guest.cookies()).length === 0);
 const signer = await guest.newPage();
 signer.on("pageerror", (e) => { console.log("  ! signer page error:", e.message); failures += 1; });
 await signer.goto(signUrl);
@@ -73,6 +93,12 @@ await signer.waitForSelector("text=Signing for");
 const signPage = await signer.textContent("body");
 check("page states who is being signed for", /Signing for/.test(signPage));
 check("guardian mode is explained", /parent or legal guardian/.test(signPage));
+check("signer was never redirected to a login screen", !signer.url().includes("/login"));
+check("no sign-in prompt anywhere on the page", !/Sign in|Create an account/i.test(signPage));
+check(
+  "still no session cookie — the signer has no account",
+  (await guest.cookies()).every((c) => c.name !== "rsa_session"),
+);
 
 await signer.fill('input[name="field_emergencyContactName"]', "Rosa Mercer");
 await signer.fill('input[name="field_emergencyContactPhone"]', "615-555-0199");
@@ -108,7 +134,11 @@ log("Signature is recorded and visible to the leader");
 await page.goto(`${tripUrl}/waivers`);
 await page.waitForSelector("text=Student Ministry Release 2026");
 const waiverBody = await page.textContent("body");
-check("one signature counted", /1 \/ 42/.test(waiverBody));
+const signedAfter = Number(waiverBody.match(/(\d+)\s*\/\s*42\s*signed/)?.[1] ?? "-1");
+check(
+  `the new signature is counted (${signedBefore} -> ${signedAfter})`,
+  signedAfter === signedBefore + 1,
+);
 await page.click('a:has-text("View signed waiver")');
 await page.waitForSelector("text=Signature record");
 const record = await page.textContent("body");
@@ -156,6 +186,12 @@ check("packet includes vehicle assignments", /Vehicle Assignments/.test(packet))
 
 log("Prayer step");
 await page.goto(`${tripUrl}/prayer`);
+// Completing prayer is a one-way action, so a re-run of this suite finds it
+// already done. Undo first and walk the real path rather than skipping it.
+if (await page.$('button:has-text("Undo")')) {
+  await page.click('button:has-text("Undo")');
+  await page.waitForSelector('button:has-text("We prayed over the group")', { timeout: 30000 });
+}
 await page.waitForSelector("text=Pray over the group");
 await page.click('button:has-text("We prayed over the group")');
 await page.waitForSelector("text=ready to go", { timeout: 30000 });
@@ -171,10 +207,34 @@ for (const path of ["", "/people", "/waivers", "/transportation", "/lodging", "/
 }
 
 log("Cross-organization access is refused");
-const outsider = await browser.newContext();
+const outsider = await browser.newContext({ ignoreHTTPSErrors: true });
 const outsiderPage = await outsider.newPage();
 const res = await outsiderPage.goto(tripUrl);
 check("signed-out user is redirected to login", outsiderPage.url().includes("/login") || res.status() >= 400);
+
+log("Production hardening");
+{
+  const health = await (await context.request.get(`${BASE}/api/health`)).json();
+  check("health endpoint reports the database", health.status === "ok" && health.database === "connected");
+
+  const cookies = await context.cookies();
+  const session = cookies.find((c) => c.name === "rsa_session");
+  check("session cookie exists", Boolean(session));
+  if (session) {
+    check("session cookie is httpOnly", session.httpOnly === true);
+    check("session cookie is sameSite=Lax", session.sameSite === "Lax");
+    if (BASE.startsWith("https://")) check("session cookie is Secure over TLS", session.secure === true);
+    check("session cookie value is opaque, not a JWT", !session.value.includes("."));
+  }
+
+  const headers = (await context.request.get(`${BASE}/login`)).headers();
+  check("nosniff header present", headers["x-content-type-options"] === "nosniff");
+  check("clickjacking blocked", headers["x-frame-options"] === "DENY");
+
+  const signHeaders = (await context.request.get(`${BASE}/sign/${"b".repeat(43)}`)).headers();
+  check("signing pages are not cached", (signHeaders["cache-control"] ?? "").includes("no-store"));
+  check("signing pages are not indexed", (signHeaders["x-robots-tag"] ?? "").includes("noindex"));
+}
 
 await browser.close();
 console.log(failures === 0 ? "\nAll end-to-end checks passed." : `\n${failures} check(s) failed.`);

@@ -34,6 +34,12 @@ Then sign in as `leader@example.church` / `readysetamen2026`.
 
 ---
 
+## Deploy
+
+One-click-ish on Railway: Postgres, migrations on boot, `$PORT` binding, a
+health check, and optional demo data are all pre-configured.
+See **[`docs/DEPLOY-RAILWAY.md`](docs/DEPLOY-RAILWAY.md)** — about five minutes.
+
 ## Stack
 
 Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Prisma ·

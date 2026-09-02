@@ -1,6 +1,10 @@
 /**
- * Development seed: one church, one trip, 42 people, a real waiver template,
- * vehicles, rooms, and a schedule. Enough to exercise every screen.
+ * Demo seed: one church, one trip, 42 people, a real waiver template, vehicles,
+ * rooms, and a schedule. Enough to exercise every screen immediately.
+ *
+ * Idempotent — it removes and rebuilds the demo organization, so running it
+ * twice against the same database leaves one copy, not two. It only ever
+ * touches the demo account; other organizations in the database are untouched.
  *
  * Run with: npm run seed
  */
@@ -54,6 +58,11 @@ const LEADERS = [
 
 async function main() {
   const email = "leader@example.church";
+  const slug = "grace-community-demo";
+
+  // Rebuild from scratch so re-running never stacks up duplicate demo data.
+  // Both cascade, so this clears the trip, roster, waivers and signatures too.
+  await prisma.organization.deleteMany({ where: { slug } });
   await prisma.user.deleteMany({ where: { email } });
 
   const user = await prisma.user.create({
@@ -68,7 +77,7 @@ async function main() {
   const organization = await prisma.organization.create({
     data: {
       name: "Grace Community Church",
-      slug: `grace-community-${Date.now().toString(36)}`,
+      slug,
       city: "Franklin",
       state: "TN",
       members: { create: { userId: user.id, role: "OWNER" } },
@@ -354,10 +363,13 @@ async function main() {
     ],
   });
 
+  const base = (process.env.APP_URL ?? (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : "http://localhost:3000")).replace(/\/+$/, "");
+
   console.info("Seeded.");
-  console.info(`  Sign in: ${email} / readysetamen2026`);
-  console.info(`  Organization: /orgs/${organization.slug}`);
-  console.info(`  Trip: /orgs/${organization.slug}/trips/${trip.id}`);
+  console.info(`  Sign in at ${base}/login`);
+  console.info(`  Email:    ${email}`);
+  console.info(`  Password: readysetamen2026`);
+  console.info(`  Trip:     ${base}/orgs/${organization.slug}/trips/${trip.id}`);
 }
 
 main()
