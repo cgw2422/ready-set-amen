@@ -252,7 +252,14 @@ export type SignatureSubmission = {
 };
 
 export type SignatureResult =
-  | { ok: true; signedWaiverId: string; attendeeName: string; tripName: string; alsoUnsigned: number }
+  | {
+      ok: true;
+      signedWaiverId: string;
+      attendeeName: string;
+      tripName: string;
+      /** Other children of the same guardian who still need to sign. */
+      siblings: { name: string; url: string }[];
+    }
   | { ok: false; error: string };
 
 /**
@@ -439,31 +446,26 @@ export async function recordSignature(input: SignatureSubmission): Promise<Signa
       return created;
     });
 
-    // "One parent, several children" — count other unsigned students on this
-    // trip whose guardian email matches the signer's.
-    const signerEmail = (answers.get("guardianEmail") || input.signerEmail || "")
-      .trim()
-      .toLowerCase();
-    let alsoUnsigned = 0;
-    if (signerEmail) {
-      alsoUnsigned = await prisma.waiverRecipient.count({
-        where: {
-          requirement: { tripId: context.trip.id },
-          status: { in: ["NOT_SENT", "SENT", "VIEWED"] },
-          attendee: {
-            id: { not: context.attendee.id },
-            guardians: { some: { emailNormalized: signerEmail } },
-          },
-        },
-      });
-    }
+    // "One parent, several children" (docs/ARCHITECTURE.md §9).
+    //
+    // Sibling links are only offered when the email the signer just entered
+    // matches the guardian email already on file for THIS participant. That
+    // means a stolen link alone cannot be used to discover other families'
+    // children — the holder would also have to know the exact address the
+    // church already has on record.
+    const siblings = await findSiblingLinks({
+      tripId: context.trip.id,
+      attendeeId: context.attendee.id,
+      signerEmail: (answers.get("guardianEmail") || input.signerEmail || "").trim().toLowerCase(),
+      createdBy: undefined,
+    });
 
     return {
       ok: true,
       signedWaiverId: signedWaiver.id,
       attendeeName: participantName,
       tripName: context.trip.name,
-      alsoUnsigned,
+      siblings,
     };
   } catch (error) {
     if (error instanceof Error && error.message === "LINK_ALREADY_USED") {
@@ -473,6 +475,53 @@ export async function recordSignature(input: SignatureSubmission): Promise<Signa
     console.error("[waiver] signature transaction failed");
     return { ok: false, error: "We couldn't save that signature. Please try again." };
   }
+}
+
+/**
+ * Issues signing links for a guardian's other unsigned children on the same
+ * trip. Returns an empty list unless the supplied email matches the guardian
+ * record already stored for the participant who just signed.
+ */
+async function findSiblingLinks(params: {
+  tripId: string;
+  attendeeId: string;
+  signerEmail: string;
+  createdBy?: string;
+}): Promise<{ name: string; url: string }[]> {
+  const { tripId, attendeeId, signerEmail } = params;
+  if (!signerEmail) return [];
+
+  const onFile = await prisma.guardian.findFirst({
+    where: { attendeeId, emailNormalized: signerEmail },
+    select: { id: true },
+  });
+  if (!onFile) return [];
+
+  const siblings = await prisma.waiverRecipient.findMany({
+    where: {
+      requirement: { tripId },
+      status: { in: ["NOT_SENT", "SENT", "VIEWED"] },
+      attendee: {
+        id: { not: attendeeId },
+        guardians: { some: { emailNormalized: signerEmail } },
+      },
+    },
+    select: {
+      id: true,
+      attendee: { select: { firstName: true, lastName: true, preferredName: true } },
+    },
+    take: 10,
+  });
+
+  const links: { name: string; url: string }[] = [];
+  for (const sibling of siblings) {
+    const url = await issueSigningLink(sibling.id, params.createdBy);
+    links.push({
+      name: `${sibling.attendee.preferredName || sibling.attendee.firstName} ${sibling.attendee.lastName}`.trim(),
+      url,
+    });
+  }
+  return links;
 }
 
 /** Field keys that should be hidden from general printouts. */

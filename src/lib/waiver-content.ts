@@ -113,7 +113,18 @@ export const waiverContentSchema = z.object({
   formatVersion: z.literal(1),
   waiverTitle: z.string().min(1).max(200),
   organizationName: z.string().min(1).max(200),
-  sections: z.record(z.enum(SECTION_KEYS), sectionSchema),
+  // Every section key is always present so downstream code never has to guard
+  // for a missing one; `enabled` is what turns a section off.
+  sections: z.object({
+    intro: sectionSchema,
+    release: sectionSchema,
+    assumptionOfRisk: sectionSchema,
+    medicalAuthorization: sectionSchema,
+    photoRelease: sectionSchema,
+    emergencyTreatment: sectionSchema,
+    customTerms: sectionSchema,
+    footer: sectionSchema,
+  }),
   fields: z.array(fieldConfigSchema),
   customQuestions: z.array(customQuestionSchema),
   initials: z.array(initialsSchema),
@@ -197,7 +208,7 @@ export function enabledSections(content: WaiverContent): EnabledSection[] {
   const result: EnabledSection[] = [];
   for (const key of SECTION_KEYS) {
     const section = content.sections[key];
-    if (!section?.enabled) continue;
+    if (!section.enabled) continue;
     if (section.body.trim().length === 0) continue;
     result.push({ key, heading: section.heading, body: section.body });
   }
