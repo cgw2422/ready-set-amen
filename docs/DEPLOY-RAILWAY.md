@@ -34,6 +34,7 @@ Open the app service → **Variables**:
 | `APP_HOST` | with the above | `app.readysetamen.com` |
 | `STRIPE_SECRET_KEY` | to sell anything | See [docs/PRICING-AND-DOMAINS.md](./PRICING-AND-DOMAINS.md) |
 | `STRIPE_WEBHOOK_SECRET` | to grant access | The signing secret for your webhook endpoint |
+| `GOOGLE_SHEETS_TEMPLATE_URL` | optional | A public Google Sheet to offer as an import starter. Hidden when unset — see [docs/ATTENDEE-IMPORT.md](./ATTENDEE-IMPORT.md) |
 | `RESEND_API_KEY` | recommended | Transactional email. Waivers and invitations work fine without it via Copy Link — but **self-service password reset needs it to deliver**. Without email, an owner issues reset links from organization settings instead. |
 | `MAIL_FROM` | with the above | e.g. `Ready Set Amen <trips@yourchurch.org>` |
 

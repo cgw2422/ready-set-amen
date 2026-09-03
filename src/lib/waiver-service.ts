@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { hasFullAccess } from "@/lib/entitlement";
 import { generateToken, hashDocument, sha256 } from "@/lib/crypto";
 import { appUrl } from "@/lib/request";
 import {
@@ -72,8 +73,23 @@ function linkExpiry(tripEnd: Date | null): Date {
 export async function issueSigningLink(recipientId: string, createdBy?: string): Promise<string> {
   const recipient = await prisma.waiverRecipient.findUniqueOrThrow({
     where: { id: recipientId },
-    select: { id: true, requirement: { select: { trip: { select: { endDate: true } } } } },
+    select: {
+      id: true,
+      requirement: {
+        select: {
+          trip: { select: { endDate: true, organization: { select: { entitlement: true } } } },
+        },
+      },
+    },
   });
+
+  // The last line of defence, inside the service that mints the token rather
+  // than only in the actions that call it. Creating and previewing a waiver is
+  // free; a token a parent could actually use is not, and no future caller
+  // should be able to reach one by forgetting a check of its own.
+  if (!hasFullAccess(recipient.requirement.trip.organization)) {
+    throw new Error("Unlock Ready Set Amen to send signing links.");
+  }
 
   const token = generateToken(32);
 

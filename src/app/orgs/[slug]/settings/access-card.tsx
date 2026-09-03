@@ -1,7 +1,7 @@
 import type { Entitlement } from "@prisma/client";
 import { Card, LinkButton } from "@/components/ui";
 import { CheckBadge } from "@/components/brand";
-import { entitlementLabel, isPaid } from "@/lib/entitlement";
+import { entitlementLabel, hasFullAccess } from "@/lib/entitlement";
 import { formatPrice, LAUNCH_PRICE } from "@/lib/pricing";
 
 /**
@@ -25,7 +25,7 @@ export function AccessCard({
     purchasedAt: Date;
   } | null;
 }) {
-  const paid = isPaid(entitlement);
+  const paid = hasFullAccess({ entitlement });
 
   return (
     <Card className="p-4">

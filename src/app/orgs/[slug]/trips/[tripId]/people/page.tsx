@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { requireTrip } from "@/lib/access";
+import { attendeeCount, requireTrip } from "@/lib/access";
+import { freeAttendeeSpotsLeft } from "@/lib/entitlement";
 import { toNumber } from "@/lib/trip-data";
 import { ageOn, displayName, initials, money } from "@/lib/format";
 import { Alert, Badge, Card, EmptyState, LinkButton } from "@/components/ui";
@@ -32,8 +33,11 @@ export default async function PeoplePage({
 }) {
   const { slug, tripId } = await params;
   const { q = "", filter = "all", added } = await searchParams;
-  await requireTrip(tripId);
+  const ctx = await requireTrip(tripId);
   const base = `/orgs/${slug}/trips/${tripId}`;
+  // The same helper the server actions use, so the number shown here and the
+  // limit actually enforced can never drift apart.
+  const spotsLeft = freeAttendeeSpotsLeft(ctx.organization, await attendeeCount(ctx));
 
   const attendees = await prisma.attendee.findMany({
     where: { tripId },
@@ -98,7 +102,10 @@ export default async function PeoplePage({
             {attendees.filter((a) => a.isLeader).length} leaders
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <LinkButton href={`${base}/people/import`} variant="secondary" size="sm">
+            Import CSV / Excel
+          </LinkButton>
           <LinkButton href={`${base}/people/quick-add`} variant="secondary" size="sm">
             Quick add
           </LinkButton>
@@ -107,6 +114,30 @@ export default async function PeoplePage({
           </LinkButton>
         </div>
       </div>
+
+      {/* How much room is left, stated plainly and only while it applies. This
+          is the one mention of the limit on this screen. */}
+      {spotsLeft !== null ? (
+        <Alert tone={spotsLeft === 0 ? "warning" : "info"}>
+          {spotsLeft === 0 ? (
+            <>
+              Free Setup includes up to 10 attendees, and you have reached it.{" "}
+              <Link
+                href={`/orgs/${slug}/unlock?gate=attendee-limit&next=${encodeURIComponent(`${base}/people`)}`}
+                className="font-semibold underline"
+              >
+                Unlock lifetime access
+              </Link>{" "}
+              to add everyone else.
+            </>
+          ) : (
+            <>
+              Free Setup includes up to 10 attendees. You can add {spotsLeft} more
+              {spotsLeft === 1 ? " person" : " people"} before unlocking lifetime access.
+            </>
+          )}
+        </Alert>
+      ) : null}
 
       {added ? (
         <Alert tone="success">

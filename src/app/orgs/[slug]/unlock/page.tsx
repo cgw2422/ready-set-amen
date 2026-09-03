@@ -3,20 +3,12 @@ import { requireOrg } from "@/lib/access";
 import { checkoutAvailability } from "@/lib/actions/billing";
 import { CheckBadge, LogoLockup } from "@/components/brand";
 import { Alert, Card, LinkButton } from "@/components/ui";
-import { featureCopy, isPaid, type PaidFeature } from "@/lib/entitlement";
+import { gateCopy, hasFullAccess, isGate } from "@/lib/entitlement";
 import { LAUNCH_PRICE } from "@/lib/pricing";
 import { UnlockButton } from "./unlock-button";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Unlock Ready Set Amen" };
-
-const FEATURES: PaidFeature[] = [
-  "attendees-beyond-free-limit",
-  "waiver-signing-links",
-  "leader-invitations",
-  "headcount",
-  "trip-packet",
-];
 
 const INCLUDED = [
   "Unlimited trips",
@@ -31,24 +23,32 @@ const INCLUDED = [
   "Future V1 improvements",
 ];
 
+/**
+ * One unlock screen for every paid boundary. The headline and body change to
+ * match what the leader was trying to do; the price, the list and the way out
+ * never do. There is no urgency, no countdown and no scarcity — the offer is
+ * the same today as it will be tomorrow.
+ */
 export default async function UnlockPage({
   params,
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ feature?: string; next?: string }>;
+  searchParams: Promise<{ gate?: string; next?: string; detail?: string }>;
 }) {
   const { slug } = await params;
-  const { feature: rawFeature, next } = await searchParams;
+  const { gate: rawGate, next, detail } = await searchParams;
   const ctx = await requireOrg(slug);
 
-  // Already paid: there is nothing to sell, so never show a purchase screen.
-  if (isPaid(ctx.organization.entitlement)) redirect(safeNext(next, slug));
+  // Already has access: there is nothing to sell, so never show a sales screen.
+  if (hasFullAccess(ctx.organization)) redirect(safeNext(next, slug));
 
-  const feature = FEATURES.includes(rawFeature as PaidFeature)
-    ? (rawFeature as PaidFeature)
-    : null;
-  const copy = feature ? featureCopy(feature) : null;
+  const copy = isGate(rawGate)
+    ? gateCopy(rawGate)
+    : {
+        title: "You're ready for the next step.",
+        body: "You've started building your trip. Unlock Ready Set Amen and keep everything together from departure to coming home.",
+      };
   const { available } = await checkoutAvailability();
   const backTo = safeNext(next, slug);
   const canBuy = ctx.role === "OWNER";
@@ -60,16 +60,13 @@ export default async function UnlockPage({
       </div>
 
       <Card className="mt-6 p-5">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-green-deep">
-          You&rsquo;re ready for the next step.
-        </p>
-        <h1 className="mt-2 font-display text-2xl font-extrabold text-navy">
-          {copy?.title ?? "Unlock Ready Set Amen"}
+        <h1 className="font-display text-2xl font-extrabold uppercase tracking-tight text-navy">
+          {copy.title}
         </h1>
-        <p className="mt-2 text-sm leading-relaxed text-navy-soft">
-          {copy?.body ??
-            "You've started building your trip. Unlock Ready Set Amen and keep everything together from departure to coming home."}
-        </p>
+        <p className="mt-2 text-sm leading-relaxed text-navy-soft">{copy.body}</p>
+        {detail ? (
+          <p className="mt-2 rounded-xl bg-cream px-3 py-2 text-sm text-navy">{detail}</p>
+        ) : null}
 
         <div className="mt-5 rounded-xl bg-green-tint p-4">
           <p className="font-display text-4xl font-extrabold leading-none text-navy">

@@ -15,14 +15,14 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
-    "test": "tsx --test tests/readiness.test.ts tests/auto-assign.test.ts tests/crypto.test.ts tests/waiver-content.test.ts tests/server-actions.test.ts",
+    "test": "tsx --conditions=react-server --test tests/readiness.test.ts tests/auto-assign.test.ts tests/crypto.test.ts tests/waiver-content.test.ts tests/server-actions.test.ts tests/import.test.ts",
     "test:e2e": "node tests/e2e.mjs",
     "start:railway": "node scripts/railway-start.mjs",
     "seed:demo": "tsx prisma/seed.ts",
     "test:integrity": "DATABASE_URL=${TEST_DATABASE_URL:-$DATABASE_URL} APP_URL=https://waivers.test node --import tsx --conditions=react-server --test tests/waiver-integrity.test.ts",
-    "test:security": "DATABASE_URL=${TEST_DATABASE_URL:-$DATABASE_URL} node --import tsx --test tests/security.test.ts",
-    "test:all": "npm test && npm run test:integrity && npm run test:security && npm run test:accounts && npm run test:demo && npm run test:billing",
-    "test:accounts": "DATABASE_URL=${TEST_DATABASE_URL:-$DATABASE_URL} node --import tsx --test tests/accounts.test.ts",
+    "test:security": "DATABASE_URL=${TEST_DATABASE_URL:-$DATABASE_URL} node --import tsx --conditions=react-server --test tests/security.test.ts",
+    "test:all": "npm test && npm run test:integrity && npm run test:security && npm run test:accounts && npm run test:demo && npm run test:billing && npm run test:limits",
+    "test:accounts": "DATABASE_URL=${TEST_DATABASE_URL:-$DATABASE_URL} node --import tsx --conditions=react-server --test tests/accounts.test.ts",
     "demo:status": "node --import tsx --conditions=react-server scripts/demo.ts status",
     "demo:readiness": "node --import tsx --conditions=react-server scripts/demo-readiness.ts",
     "demo:seed": "node --import tsx --conditions=react-server scripts/demo.ts seed",
@@ -31,7 +31,8 @@
     "grant": "node --import tsx --conditions=react-server scripts/grant.ts grant",
     "grant:status": "node --import tsx --conditions=react-server scripts/grant.ts status",
     "test:demo": "DATABASE_URL=${TEST_DATABASE_URL:-$DATABASE_URL} node --import tsx --conditions=react-server --test tests/demo.test.ts",
-    "test:billing": "DATABASE_URL=${TEST_DATABASE_URL:-$DATABASE_URL} node --import tsx --conditions=react-server --test tests/billing.test.ts"
+    "test:billing": "DATABASE_URL=${TEST_DATABASE_URL:-$DATABASE_URL} node --import tsx --conditions=react-server --test tests/billing.test.ts",
+    "test:limits": "DATABASE_URL=${TEST_DATABASE_URL:-$DATABASE_URL} node --import tsx --conditions=react-server --test tests/limits.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Entitlement } from "@prisma/client";
-import { isPaid } from "@/lib/entitlement";
+import { hasFullAccess } from "@/lib/entitlement";
 import { LAUNCH_PRICE } from "@/lib/pricing";
 
 /**
@@ -20,7 +20,7 @@ export function FreeSetupBadge({
   slug: string;
   returnTo?: string;
 }) {
-  if (isPaid(entitlement)) return null;
+  if (hasFullAccess({ entitlement })) return null;
 
   const href = returnTo
     ? `/orgs/${slug}/unlock?next=${encodeURIComponent(returnTo)}`

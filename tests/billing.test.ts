@@ -14,13 +14,20 @@ import { prisma } from "../src/lib/db";
 import { hashPassword } from "../src/lib/crypto";
 import { grantLifetimeAccess, latestPurchase } from "../src/lib/billing";
 import {
-  FREE_SETUP_ATTENDEE_LIMIT,
-  allows,
+  FREE_SETUP,
+  canAddAttendee,
+  canCreateSigningLink,
+  canCreateTrip,
+  canGenerateTripPacket,
+  canInviteLeader,
+  canRunHeadcount,
   entitlementLabel,
-  isPaid,
+  freeAttendeeSpotsLeft,
+  hasFullAccess,
   unlockPath,
 } from "../src/lib/entitlement";
 import { LAUNCH_PRICE_CENTS, formatPrice } from "../src/lib/pricing";
+import type { Entitlement } from "@prisma/client";
 
 const OWNER_EMAIL = "owner@billing.test";
 const FREE_SLUG = "free-church-billing-test";
@@ -77,37 +84,69 @@ after(async () => {
 test("a new church starts in free setup, not locked and not paid", async () => {
   const org = await prisma.organization.findUniqueOrThrow({ where: { id: freeOrgId } });
   assert.equal(org.entitlement, "FREE_SETUP");
-  assert.equal(isPaid(org.entitlement), false);
+  assert.equal(hasFullAccess(org), false);
   assert.equal(entitlementLabel(org.entitlement), "Ready Set Amen Free Setup");
 });
 
-test("every paid feature is closed in free setup and open once paid", () => {
-  const features = [
-    "attendees-beyond-free-limit",
-    "waiver-signing-links",
-    "leader-invitations",
-    "headcount",
-    "trip-packet",
-  ] as const;
+test("the three full-access states behave identically at every gate", () => {
+  const gates = [
+    (org: { entitlement: Entitlement }) => canCreateTrip(org, 1),
+    (org: { entitlement: Entitlement }) => canAddAttendee(org, FREE_SETUP.attendees, 1),
+    canCreateSigningLink,
+    canRunHeadcount,
+    canInviteLeader,
+    canGenerateTripPacket,
+  ];
 
-  for (const feature of features) {
-    assert.equal(allows("FREE_SETUP", feature), false, feature);
-    assert.equal(allows("LIFETIME", feature), true, feature);
-    assert.equal(allows("MANUAL_LIFETIME", feature), true, feature);
-    // The showcase church uses the product exactly as a paying one does.
-    assert.equal(allows("DEMO", feature), true, feature);
+  for (const gate of gates) {
+    assert.equal(gate({ entitlement: "FREE_SETUP" }).allowed, false);
+    for (const entitlement of ["LIFETIME", "MANUAL_LIFETIME", "DEMO"] as const) {
+      // The showcase church uses the product exactly as a paying one does.
+      assert.equal(gate({ entitlement }).allowed, true, entitlement);
+    }
   }
 });
 
-test("the unlock link says which feature was blocked and where to return", () => {
-  const path = unlockPath("my-church", "headcount", "/orgs/my-church/trips/t1/headcount");
-  assert.ok(path.startsWith("/orgs/my-church/unlock?"));
-  assert.match(path, /feature=headcount/);
-  assert.match(path, /next=%2Forgs%2Fmy-church%2Ftrips%2Ft1%2Fheadcount/);
+test("free setup includes exactly one trip", () => {
+  const free = { entitlement: "FREE_SETUP" as const };
+  assert.equal(canCreateTrip(free, 0).allowed, true);
+  const second = canCreateTrip(free, 1);
+  assert.equal(second.allowed, false);
+  assert.equal(second.allowed === false && second.gate, "second-trip");
+  assert.equal(canCreateTrip({ entitlement: "LIFETIME" }, 99).allowed, true);
 });
 
-test("the free attendee limit is a real number a church can reach", () => {
-  assert.ok(FREE_SETUP_ATTENDEE_LIMIT >= 5 && FREE_SETUP_ATTENDEE_LIMIT <= 25);
+test("free setup includes exactly ten attendees, however they arrive", () => {
+  const free = { entitlement: "FREE_SETUP" as const };
+  assert.equal(canAddAttendee(free, 0, 10).allowed, true, "ten at once");
+  assert.equal(canAddAttendee(free, 6, 4).allowed, true, "six plus four");
+  assert.equal(canAddAttendee(free, 9, 1).allowed, true, "the tenth");
+  assert.equal(canAddAttendee(free, 10, 1).allowed, false, "the eleventh");
+  assert.equal(canAddAttendee(free, 8, 5).allowed, false, "five when two remain");
+  assert.equal(canAddAttendee(free, 0, 11).allowed, false, "eleven at once");
+  assert.equal(canAddAttendee({ entitlement: "LIFETIME" }, 500, 500).allowed, true);
+});
+
+test("the message says how many spots are left, in the words a leader reads", () => {
+  const denied = canAddAttendee({ entitlement: "FREE_SETUP" }, 8, 5);
+  assert.equal(denied.allowed, false);
+  assert.match(
+    denied.allowed === false ? (denied.detail ?? "") : "",
+    /includes up to 10 attendees.*currently have 8 people.*add 2 more/s,
+  );
+});
+
+test("spots remaining is reported for free setup and unlimited when paid", () => {
+  assert.equal(freeAttendeeSpotsLeft({ entitlement: "FREE_SETUP" }, 8), 2);
+  assert.equal(freeAttendeeSpotsLeft({ entitlement: "FREE_SETUP" }, 14), 0, "never negative");
+  assert.equal(freeAttendeeSpotsLeft({ entitlement: "DEMO" }, 400), null);
+});
+
+test("the unlock link says which gate was hit and where to return", () => {
+  const path = unlockPath("my-church", "headcount", "/orgs/my-church/trips/t1/headcount");
+  assert.ok(path.startsWith("/orgs/my-church/unlock?"));
+  assert.match(path, /gate=headcount/);
+  assert.match(path, /next=%2Forgs%2Fmy-church%2Ftrips%2Ft1%2Fheadcount/);
 });
 
 // ---------------------------------------------------------------------------

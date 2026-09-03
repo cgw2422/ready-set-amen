@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireTrip, requirePaidFeature } from "@/lib/access";
+import { requireTrip, requireHeadcount } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
+import { FULL_ACCESS } from "@/lib/entitlement";
 import type { HeadcountScope } from "@prisma/client";
 import type { FormState } from "@/lib/actions/auth";
 
@@ -19,7 +20,7 @@ export async function startHeadcountAction(
   formData: FormData,
 ): Promise<FormState> {
   const ctx = await requireTrip(tripId);
-  requirePaidFeature(ctx, "headcount", `/orgs/${ctx.organization.slug}/trips/${tripId}/headcount`);
+  requireHeadcount(ctx, `/orgs/${ctx.organization.slug}/trips/${tripId}/headcount`);
 
   const scopeRaw = String(formData.get("scope") ?? "TRIP");
   const scope: HeadcountScope = ["TRIP", "VEHICLE", "ROOM", "CUSTOM"].includes(scopeRaw)
@@ -79,6 +80,7 @@ async function sessionTrip(sessionId: string) {
     select: { id: true, tripId: true },
   });
   const ctx = await requireTrip(session.tripId);
+  requireHeadcount(ctx, `/orgs/${ctx.organization.slug}/trips/${session.tripId}/headcount`);
   return { session, ctx };
 }
 
@@ -109,7 +111,14 @@ export async function toggleHeadcountRecordAction(
       sessionId,
       attendeeId,
       session: {
-        trip: { organization: { members: { some: { userId: user.id } } } },
+        trip: {
+          organization: {
+            members: { some: { userId: user.id } },
+            // Part of the same query rather than a lookup before it: this path
+            // runs once per person and cannot afford a second round trip.
+            entitlement: { in: [...FULL_ACCESS] },
+          },
+        },
       },
     },
     data: { present, markedAt: present ? new Date() : null },

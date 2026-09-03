@@ -1,7 +1,7 @@
 import { requireOrg } from "@/lib/access";
 import { CheckBadge, Confetti, Wordmark } from "@/components/brand";
 import { Card, LinkButton } from "@/components/ui";
-import { isPaid } from "@/lib/entitlement";
+import { hasFullAccess } from "@/lib/entitlement";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "You're all set" };
@@ -22,7 +22,7 @@ export default async function UnlockSuccessPage({
   const { slug } = await params;
   const { next } = await searchParams;
   const ctx = await requireOrg(slug);
-  const active = isPaid(ctx.organization.entitlement);
+  const active = hasFullAccess(ctx.organization);
   const backTo = safeNext(next, slug);
 
   return (

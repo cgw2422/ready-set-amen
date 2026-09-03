@@ -1,7 +1,7 @@
 import "server-only";
 import type { Entitlement, PurchaseSource } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { isPaid } from "@/lib/entitlement";
+import { hasFullAccess } from "@/lib/entitlement";
 
 /**
  * Granting access, in one place, exactly once.
@@ -53,7 +53,8 @@ export async function grantLifetimeAccess(input: {
   // The demo church is never converted by a payment, and a church that already
   // owns lifetime access keeps the entitlement it has; the purchase is still
   // recorded so support can see what happened.
-  const keepExisting = organization.entitlement === "DEMO" || isPaid(organization.entitlement);
+  const keepExisting =
+    organization.entitlement === "DEMO" || hasFullAccess(organization);
 
   const [, updated] = await prisma.$transaction([
     prisma.purchase.create({

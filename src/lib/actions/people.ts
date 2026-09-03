@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAttendee, requireTrip, requireAttendeeCapacity } from "@/lib/access";
+import { createWithAttendeeCapacity, requireAttendee, requireTrip } from "@/lib/access";
 import { parseDateInput } from "@/lib/format";
 import { syncWaiverRecipients } from "@/lib/waiver-service";
 import type { FormState } from "@/lib/actions/auth";
@@ -122,16 +122,37 @@ async function upsertGuardian(attendeeId: string, formData: FormData) {
   else await prisma.guardian.create({ data: { ...data, attendeeId } });
 }
 
+/**
+ * React 19 resets an uncontrolled form once its action settles, so a failed
+ * save would otherwise wipe everything a leader had typed — every field, for a
+ * form this long, because one of them was wrong. Returning the submitted values
+ * lets the form put them straight back.
+ */
+export type AttendeeFormState = FormState & { submitted?: Record<string, string> };
+
+function submittedValues(formData: FormData): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of formData.entries()) {
+    if (typeof value === "string") out[key] = value;
+  }
+  return out;
+}
+
 export async function createAttendeeAction(
   tripId: string,
-  _prev: FormState,
+  _prev: AttendeeFormState,
   formData: FormData,
-): Promise<FormState> {
+): Promise<AttendeeFormState> {
   const ctx = await requireTrip(tripId);
-  await requireAttendeeCapacity(ctx, 1, `/orgs/${ctx.organization.slug}/trips/${tripId}/people`);
+
+  // Validate before the capacity check so a typo is answered with a field
+  // error rather than a payment screen.
   const parsed = readAttendeeForm(formData);
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
+    return {
+      error: parsed.error.issues[0]?.message ?? "Please check the form.",
+      submitted: submittedValues(formData),
+    };
   }
 
   const trip = await prisma.trip.findUniqueOrThrow({
@@ -139,37 +160,49 @@ export async function createAttendeeAction(
     select: { costPerPerson: true },
   });
 
-  const attendee = await prisma.attendee.create({
-    data: {
-      tripId,
-      ...attendeeData(parsed.data),
-      amountDue: trip.costPerPerson ?? 0,
-    },
-    select: { id: true },
-  });
+  // The count and the insert happen under one lock, so two taps of Save cannot
+  // both see nine people and make eleven.
+  const attendee = await createWithAttendeeCapacity(
+    ctx,
+    1,
+    (tx) =>
+      tx.attendee.create({
+        data: {
+          tripId,
+          ...attendeeData(parsed.data),
+          amountDue: trip.costPerPerson ?? 0,
+        },
+        select: { id: true },
+      }),
+    `/orgs/${ctx.organization.slug}/trips/${tripId}/people`,
+  );
 
   await upsertGuardian(attendee.id, formData);
   await syncWaiverRecipients(tripId);
 
   revalidatePath(`/orgs/${ctx.organization.slug}/trips/${tripId}/people`);
 
-  if (formData.get("andAnother") === "true") {
-    redirect(`/orgs/${ctx.organization.slug}/trips/${tripId}/people/new?added=1`);
-  }
-  redirect(`/orgs/${ctx.organization.slug}/trips/${tripId}/people/${attendee.id}`);
+  // A redirect rather than a re-render: a brand new page cannot carry over a
+  // stale field, a validation message, or the minor toggle.
+  const people = `/orgs/${ctx.organization.slug}/trips/${tripId}/people`;
+  if (formData.get("andAnother") === "true") redirect(`${people}/new?saved=1`);
+  redirect(`${people}/new?added=${attendee.id}`);
 }
 
 export async function updateAttendeeAction(
   attendeeId: string,
-  _prev: FormState,
+  _prev: AttendeeFormState,
   formData: FormData,
-): Promise<FormState> {
+): Promise<AttendeeFormState> {
   const attendee = await requireAttendee(attendeeId);
   const ctx = await requireTrip(attendee.tripId);
 
   const parsed = readAttendeeForm(formData);
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
+    return {
+      error: parsed.error.issues[0]?.message ?? "Please check the form.",
+      submitted: submittedValues(formData),
+    };
   }
 
   await prisma.attendee.update({
@@ -212,17 +245,16 @@ export async function quickAddAttendeesAction(
 
   if (lines.length === 0) return { error: "Add at least one name." };
   if (lines.length > 300) return { error: "Add up to 300 people at a time." };
-  await requireAttendeeCapacity(
-    ctx,
-    lines.length,
-    `/orgs/${ctx.organization.slug}/trips/${tripId}/people`,
-  );
 
   const trip = await prisma.trip.findUniqueOrThrow({
     where: { id: tripId },
     select: { costPerPerson: true },
   });
 
+  const created = await createWithAttendeeCapacity(
+    ctx,
+    lines.length,
+    async (tx) => {
   let created = 0;
   for (const line of lines) {
     const parts = line.split(",").map((p) => p.trim());
@@ -255,7 +287,7 @@ export async function quickAddAttendeesAction(
       email = null;
     }
 
-    const attendee = await prisma.attendee.create({
+    const attendee = await tx.attendee.create({
       data: {
         tripId,
         firstName,
@@ -270,7 +302,7 @@ export async function quickAddAttendeesAction(
     });
 
     if (guardianEmail) {
-      await prisma.guardian.create({
+      await tx.guardian.create({
         data: {
           attendeeId: attendee.id,
           name: "Parent / Guardian",
@@ -282,6 +314,10 @@ export async function quickAddAttendeesAction(
     }
     created += 1;
   }
+      return created;
+    },
+    `/orgs/${ctx.organization.slug}/trips/${tripId}/people`,
+  );
 
   await syncWaiverRecipients(tripId);
   revalidatePath(`/orgs/${ctx.organization.slug}/trips/${tripId}/people`);

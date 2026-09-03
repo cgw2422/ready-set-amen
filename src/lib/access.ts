@@ -2,13 +2,25 @@ import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import type { Entitlement, OrgRole } from "@prisma/client";
+import type { Entitlement } from "@prisma/client";
+import type { OrgRole } from "@prisma/client";
+import { canManageOrg, isOwner } from "@/lib/roles";
 import {
-  FREE_SETUP_ATTENDEE_LIMIT,
-  allows,
-  isPaid,
+  countAttendees,
+  countTrips,
+  createUnderAttendeeCapacity,
+  createUnderTripCapacity,
+  type Tx,
+} from "@/lib/capacity";
+import {
+  canCreateTrip,
+  canCreateSigningLink,
+  canGenerateTripPacket,
+  canInviteLeader,
+  canRunHeadcount,
+  hasFullAccess,
   unlockPath,
-  type PaidFeature,
+  type Decision,
 } from "@/lib/entitlement";
 
 /**
@@ -111,14 +123,6 @@ export async function requireAttendee(attendeeId: string) {
   return attendee;
 }
 
-export function canManageOrg(role: OrgRole): boolean {
-  return role === "OWNER" || role === "ADMIN";
-}
-
-export function isOwner(role: OrgRole): boolean {
-  return role === "OWNER";
-}
-
 /**
  * Owner-only actions: managing leaders, ownership, the waiver acknowledgement,
  * and deleting the organization. Everything else about running trips is open to
@@ -132,35 +136,83 @@ export async function requireOrgOwner(slug: string): Promise<OrgContext> {
 }
 
 /**
- * The one gate for paid features. It redirects rather than returning a flag so
- * a caller cannot forget to check the answer, and it runs before any work, so
- * declining to pay never costs a leader the data they had already entered.
+ * The one place a paid boundary is enforced.
+ *
+ * It redirects rather than returning a flag, so a caller cannot forget to check
+ * the answer, and every caller runs it before doing any work — declining to pay
+ * never costs a leader data they had already entered. The decision itself comes
+ * from `@/lib/entitlement`, which the UI reads too, so a hidden button and a
+ * blocked action can never disagree.
  */
-export function requirePaidFeature(
-  ctx: OrgContext,
-  feature: PaidFeature,
-  returnTo?: string,
-): void {
-  if (allows(ctx.organization.entitlement, feature)) return;
-  redirect(unlockPath(ctx.organization.slug, feature, returnTo));
+export function enforce(ctx: OrgContext, decision: Decision, returnTo?: string): void {
+  if (decision.allowed) return;
+  redirect(unlockPath(ctx.organization.slug, decision.gate, returnTo, decision.detail));
+}
+
+/** True when this organization has no limits. Read-only; never enforces. */
+export function fullAccess(ctx: OrgContext): boolean {
+  return hasFullAccess(ctx.organization);
 }
 
 /**
- * Free setup covers a real but small group, so a leader can see the dashboard
- * fill in before paying. Counted across the organization rather than per trip:
- * the limit is "try it with your first handful of people", not "ten per trip
- * you remember to create".
+ * Free setup includes one trip, and the caller passes what it wants to create
+ * so the check and the write happen under one lock — a second trip is never
+ * created and then paywalled.
  */
-export async function requireAttendeeCapacity(
+export async function createWithTripCapacity<T>(
+  ctx: OrgContext,
+  create: (tx: Tx) => Promise<T>,
+  returnTo?: string,
+): Promise<T> {
+  const result = await createUnderTripCapacity(ctx.organization, create);
+  if (!result.ok) enforce(ctx, result.decision, returnTo);
+  return (result as { value: T }).value;
+}
+
+/**
+ * Free setup includes ten people, counted across the organization and applied
+ * the same way however they are entered.
+ */
+export async function createWithAttendeeCapacity<T>(
   ctx: OrgContext,
   adding: number,
+  create: (tx: Tx) => Promise<T>,
   returnTo?: string,
-): Promise<void> {
-  if (isPaid(ctx.organization.entitlement)) return;
-  const existing = await prisma.attendee.count({
-    where: { trip: { organizationId: ctx.organization.id } },
-  });
-  if (existing + adding > FREE_SETUP_ATTENDEE_LIMIT) {
-    redirect(unlockPath(ctx.organization.slug, "attendees-beyond-free-limit", returnTo));
-  }
+): Promise<T> {
+  const result = await createUnderAttendeeCapacity(ctx.organization, adding, create);
+  if (!result.ok) enforce(ctx, result.decision, returnTo);
+  return (result as { value: T }).value;
 }
+
+/** Read-only capacity checks, for showing a number or gating a page render. */
+export async function tripCapacity(ctx: OrgContext): Promise<Decision> {
+  if (hasFullAccess(ctx.organization)) return { allowed: true };
+  return canCreateTrip(ctx.organization, await countTrips(ctx.organization.id));
+}
+
+export async function attendeeCount(ctx: OrgContext): Promise<number> {
+  return countAttendees(ctx.organization.id);
+}
+
+/** Page-level guard: sends someone to unlock instead of to a form that cannot save. */
+export async function requireTripCapacity(ctx: OrgContext, returnTo?: string): Promise<void> {
+  enforce(ctx, await tripCapacity(ctx), returnTo);
+}
+
+export function requireSigningLinks(ctx: OrgContext, returnTo?: string): void {
+  enforce(ctx, canCreateSigningLink(ctx.organization), returnTo);
+}
+
+export function requireHeadcount(ctx: OrgContext, returnTo?: string): void {
+  enforce(ctx, canRunHeadcount(ctx.organization), returnTo);
+}
+
+export function requireLeaderInvitations(ctx: OrgContext, returnTo?: string): void {
+  enforce(ctx, canInviteLeader(ctx.organization), returnTo);
+}
+
+export function requireTripPacket(ctx: OrgContext, returnTo?: string): void {
+  enforce(ctx, canGenerateTripPacket(ctx.organization), returnTo);
+}
+
+export { canManageOrg, isOwner };

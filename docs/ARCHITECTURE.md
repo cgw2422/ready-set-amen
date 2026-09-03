@@ -701,17 +701,40 @@ every leader they invite is covered; there is no per-seat anything, and no
 subscription tables, because there is no recurring charge to model.
 
 **Free setup is the product, not a demo.** A church signs up and builds a real
-trip on the real database. The gate sits on five actions that mean the trip is
-actually happening — the eleventh attendee, waiver signing links, leader
-invitations, headcounts, the trip packet — and never on reading. Nothing is
-deleted or locked for not paying, and declining costs a leader nothing they had
-entered, because `requirePaidFeature` redirects before any work is done rather
-than failing partway through it.
+trip on the real database. The gate sits on six actions that mean the trip is
+actually happening — a second trip, the eleventh attendee, a waiver signing
+token, leader invitations, a recorded headcount, the trip packet and printable
+reports — and never on reading. Nothing is deleted or locked for not paying,
+and declining costs a leader nothing they had entered, because the gate runs
+before any work rather than failing partway through it.
 
-The gate is a redirect rather than a boolean on purpose: a caller cannot forget
-to check a redirect. It lives in `src/lib/access.ts` beside the tenancy checks,
-so an action that resolves its organization has already resolved its
-entitlement — a gate can never be answered from an id the caller supplied.
+**One place decides.** `src/lib/entitlement.ts` is pure policy with no database
+and no secrets, so the UI and the server action behind it call the same
+function; a hidden button and a blocked action cannot disagree. `access.ts`
+turns a refusal into a redirect rather than a boolean, because a caller cannot
+forget to check a redirect, and it sits beside the tenancy checks so an action
+that resolved its organization has already resolved its entitlement — a gate
+can never be answered from an id the caller supplied. The signing-link service
+checks entitlement inside the function that mints the token, so no future
+caller reaches a usable link by forgetting a check of its own.
+
+**Counted limits need a lock, not a count.** Reading "nine people" and then
+inserting is a race two requests both win. `src/lib/capacity.ts` takes a
+Postgres advisory lock keyed on the organization and does the count and the
+write in one transaction. Without it, twenty simultaneous requests produce
+fifteen attendees instead of ten, and an empty organization gets two free
+trips — `tests/limits.test.ts` asserts both, and fails when the lock is removed.
+
+**Reading a spreadsheet is a security boundary.** An uploaded workbook is
+untrusted input, so `src/lib/import/spreadsheet.ts` is first-party rather than
+a dependency that can also evaluate formulas and read macros. It walks the ZIP
+central directory itself and decompresses only the worksheet, shared strings
+and styles; it reads the cached `<v>` value and never the `<f>` formula; it
+resolves no entities and follows no external reference. Every bound — bytes,
+rows, columns, cell length, claimed expansion size — is checked before parsing.
+Nothing is retained: the bytes live in the request, and confirming an import
+re-posts the same file so the server validates every row itself rather than
+trusting a preview the browser handed back.
 
 **Only a signed webhook grants access.** The return from Checkout proves
 nothing; anyone can open the success URL. `POST /api/stripe/webhook` verifies

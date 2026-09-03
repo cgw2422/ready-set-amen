@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { createAttendeeAction, updateAttendeeAction } from "@/lib/actions/people";
-import type { FormState } from "@/lib/actions/auth";
+import type { AttendeeFormState } from "@/lib/actions/people";
 import { Alert, Card, Checkbox, Field, Input, Select, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 
@@ -65,7 +65,7 @@ export const emptyAttendee: AttendeeFormValues = {
   guardianRelationship: "",
 };
 
-const initial: FormState = {};
+const initial: AttendeeFormState = {};
 
 export function AttendeeForm({
   mode,
@@ -81,37 +81,49 @@ export function AttendeeForm({
       ? createAttendeeAction.bind(null, tripId)
       : updateAttendeeAction.bind(null, values.id!);
   const [state, action] = useActionState(boundAction, initial);
-  const [isMinor, setIsMinor] = useState(values.isMinor);
+
+  // React resets the form when the action settles, so on a failure the values
+  // come back from the action rather than from the props — nothing a leader
+  // typed is lost because one field was wrong.
+  const restored = state.submitted;
+  const text = (key: keyof AttendeeFormValues) =>
+    restored ? (restored[key] ?? "") : ((values[key] as string | undefined) ?? "");
+  const checked = (key: "isMinor" | "isLeader") =>
+    restored ? restored[key] === "on" : Boolean(values[key]);
+
+  // Seeded from whatever the form will actually render, so a failed save keeps
+  // the guardian section open if that is what the leader had chosen.
+  const [isMinor, setIsMinor] = useState(checked("isMinor"));
+  
 
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} className="space-y-4" key={restored ? "restored" : "fresh"}>
       {state.error ? <Alert tone="error">{state.error}</Alert> : null}
-      {state.ok ? <Alert tone="success">Saved.</Alert> : null}
 
       <Card className="p-4">
         <p className="mb-3 font-display text-base font-bold text-navy">Who is this?</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="First name" required>
-            <Input name="firstName" defaultValue={values.firstName} required autoFocus={mode === "create"} />
+            <Input name="firstName" defaultValue={text("firstName")} required autoFocus={mode === "create"} />
           </Field>
           <Field label="Last name" required>
-            <Input name="lastName" defaultValue={values.lastName} required />
+            <Input name="lastName" defaultValue={text("lastName")} required />
           </Field>
           <Field label="Preferred name" hint="What they actually go by.">
-            <Input name="preferredName" defaultValue={values.preferredName} />
+            <Input name="preferredName" defaultValue={text("preferredName")} />
           </Field>
           <Field label="Gender" hint="Used for room assignments.">
-            <Select name="gender" defaultValue={values.gender}>
+            <Select name="gender" defaultValue={text("gender")}>
               <option value="">Not specified</option>
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </Select>
           </Field>
           <Field label="Date of birth">
-            <Input name="dateOfBirth" type="date" defaultValue={values.dateOfBirth} />
+            <Input name="dateOfBirth" type="date" defaultValue={text("dateOfBirth")} />
           </Field>
           <Field label="Shirt size">
-            <Input name="shirtSize" defaultValue={values.shirtSize} placeholder="YL, S, M, L, XL" />
+            <Input name="shirtSize" defaultValue={text("shirtSize")} placeholder="YL, S, M, L, XL" />
           </Field>
         </div>
 
@@ -119,7 +131,7 @@ export function AttendeeForm({
           <label className="flex items-center gap-3">
             <Checkbox
               name="isMinor"
-              defaultChecked={values.isMinor}
+              defaultChecked={checked("isMinor")}
               onChange={(e) => setIsMinor(e.currentTarget.checked)}
             />
             <span className="text-sm font-semibold text-navy">
@@ -130,7 +142,7 @@ export function AttendeeForm({
             </span>
           </label>
           <label className="flex items-center gap-3">
-            <Checkbox name="isLeader" defaultChecked={values.isLeader} />
+            <Checkbox name="isLeader" defaultChecked={checked("isLeader")} />
             <span className="text-sm font-semibold text-navy">
               This is an adult leader
               <span className="block text-xs font-normal text-navy-faint">
@@ -145,10 +157,10 @@ export function AttendeeForm({
         <p className="mb-3 font-display text-base font-bold text-navy">How do we reach them?</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Phone">
-            <Input name="phone" type="tel" inputMode="tel" defaultValue={values.phone} />
+            <Input name="phone" type="tel" inputMode="tel" defaultValue={text("phone")} />
           </Field>
           <Field label="Email">
-            <Input name="email" type="email" inputMode="email" defaultValue={values.email} />
+            <Input name="email" type="email" inputMode="email" defaultValue={text("email")} />
           </Field>
         </div>
       </Card>
@@ -162,16 +174,16 @@ export function AttendeeForm({
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Name" required={isMinor}>
-            <Input name="guardianName" defaultValue={values.guardianName} required={isMinor} />
+            <Input name="guardianName" defaultValue={text("guardianName")} required={isMinor} />
           </Field>
           <Field label="Relationship">
-            <Input name="guardianRelationship" defaultValue={values.guardianRelationship} placeholder="Mother" />
+            <Input name="guardianRelationship" defaultValue={text("guardianRelationship")} placeholder="Mother" />
           </Field>
           <Field label="Email" hint="Where the waiver link goes.">
-            <Input name="guardianEmail" type="email" inputMode="email" defaultValue={values.guardianEmail} />
+            <Input name="guardianEmail" type="email" inputMode="email" defaultValue={text("guardianEmail")} />
           </Field>
           <Field label="Phone">
-            <Input name="guardianPhone" type="tel" inputMode="tel" defaultValue={values.guardianPhone} />
+            <Input name="guardianPhone" type="tel" inputMode="tel" defaultValue={text("guardianPhone")} />
           </Field>
         </div>
       </Card>
@@ -180,19 +192,19 @@ export function AttendeeForm({
         <p className="mb-3 font-display text-base font-bold text-navy">Emergency contact</p>
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Name" required>
-            <Input name="emergencyContactName" defaultValue={values.emergencyContactName} required />
+            <Input name="emergencyContactName" defaultValue={text("emergencyContactName")} required />
           </Field>
           <Field label="Phone" required>
             <Input
               name="emergencyContactPhone"
               type="tel"
               inputMode="tel"
-              defaultValue={values.emergencyContactPhone}
+              defaultValue={text("emergencyContactPhone")}
               required
             />
           </Field>
           <Field label="Relationship">
-            <Input name="emergencyContactRelation" defaultValue={values.emergencyContactRelation} />
+            <Input name="emergencyContactRelation" defaultValue={text("emergencyContactRelation")} />
           </Field>
         </div>
       </Card>
@@ -204,35 +216,35 @@ export function AttendeeForm({
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Allergies">
-            <Textarea name="allergies" rows={2} defaultValue={values.allergies} />
+            <Textarea name="allergies" rows={2} defaultValue={text("allergies")} />
           </Field>
           <Field label="Medical conditions">
-            <Textarea name="medicalConditions" rows={2} defaultValue={values.medicalConditions} />
+            <Textarea name="medicalConditions" rows={2} defaultValue={text("medicalConditions")} />
           </Field>
           <Field label="Medications">
-            <Textarea name="medications" rows={2} defaultValue={values.medications} />
+            <Textarea name="medications" rows={2} defaultValue={text("medications")} />
           </Field>
           <Field label="Dietary restrictions">
-            <Textarea name="dietaryRestrictions" rows={2} defaultValue={values.dietaryRestrictions} />
+            <Textarea name="dietaryRestrictions" rows={2} defaultValue={text("dietaryRestrictions")} />
           </Field>
           <Field label="Insurance provider">
-            <Input name="insuranceProvider" defaultValue={values.insuranceProvider} />
+            <Input name="insuranceProvider" defaultValue={text("insuranceProvider")} />
           </Field>
           <Field label="Insurance policy number">
-            <Input name="insurancePolicyNumber" defaultValue={values.insurancePolicyNumber} />
+            <Input name="insurancePolicyNumber" defaultValue={text("insurancePolicyNumber")} />
           </Field>
           <Field label="Doctor name">
-            <Input name="doctorName" defaultValue={values.doctorName} />
+            <Input name="doctorName" defaultValue={text("doctorName")} />
           </Field>
           <Field label="Doctor phone">
-            <Input name="doctorPhone" type="tel" inputMode="tel" defaultValue={values.doctorPhone} />
+            <Input name="doctorPhone" type="tel" inputMode="tel" defaultValue={text("doctorPhone")} />
           </Field>
         </div>
       </Card>
 
       <Card className="p-4">
         <Field label="Notes">
-          <Textarea name="notes" rows={3} defaultValue={values.notes} />
+          <Textarea name="notes" rows={3} defaultValue={text("notes")} />
         </Field>
       </Card>
 

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { isOwner, requireOrg, requireOrgOwner, requirePaidFeature } from "@/lib/access";
+import { isOwner, requireOrg, requireOrgOwner, requireLeaderInvitations } from "@/lib/access";
 import { getCurrentUser, requireUser } from "@/lib/auth";
 import {
   acceptInvitation as acceptInvitationRecord,
@@ -35,7 +35,7 @@ export async function inviteLeaderAction(
   formData: FormData,
 ): Promise<InviteResult> {
   const ctx = await requireOrgOwner(slug);
-  requirePaidFeature(ctx, "leader-invitations", `/orgs/${slug}/settings`);
+  requireLeaderInvitations(ctx, `/orgs/${slug}/settings`);
 
   const limit = await rateLimit(`invite:${ctx.organization.id}`, 40, 60 * 60_000);
   if (!limit.allowed) {
@@ -101,7 +101,7 @@ export async function regenerateInvitationAction(
   invitationId: string,
 ): Promise<InviteResult> {
   const ctx = await requireOrgOwner(slug);
-  requirePaidFeature(ctx, "leader-invitations", `/orgs/${slug}/settings`);
+  requireLeaderInvitations(ctx, `/orgs/${slug}/settings`);
   const existing = await prisma.organizationInvitation.findFirst({
     where: { id: invitationId, organizationId: ctx.organization.id, acceptedAt: null },
     select: { email: true },

@@ -23,7 +23,7 @@ import {
   findValidInvitation,
   revokeInvitation,
 } from "../src/lib/member-service";
-import { isOwner } from "../src/lib/access";
+import { isOwner } from "../src/lib/roles";
 import { WAIVER_TERMS_TEXT } from "../src/lib/legal";
 
 const OWNER_EMAIL = "owner@accounts.test";

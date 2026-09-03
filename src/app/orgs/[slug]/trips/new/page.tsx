@@ -1,12 +1,15 @@
 import Link from "next/link";
-import { requireOrg } from "@/lib/access";
+import { requireOrg, requireTripCapacity } from "@/lib/access";
 import { NewTripForm } from "./new-trip-form";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "New trip" };
 
 export default async function NewTripPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  await requireOrg(slug);
+  const ctx = await requireOrg(slug);
+  // Send them to the unlock screen rather than to a form that cannot save.
+  await requireTripCapacity(ctx, `/orgs/${slug}`);
 
   return (
     <main className="mx-auto w-full max-w-lg px-5 py-8">

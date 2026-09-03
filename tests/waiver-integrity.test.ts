@@ -62,6 +62,10 @@ before(async () => {
     data: {
       name: "Grace Community Church",
       slug: "integrity-test-church",
+      // Signing links are a paid feature, and these tests are about the
+      // integrity of the signing mechanics rather than the paywall.
+      // tests/free-setup.mjs covers a free church being refused one.
+      entitlement: "LIFETIME",
       members: { create: { userId: user.id, role: "OWNER" } },
     },
   });

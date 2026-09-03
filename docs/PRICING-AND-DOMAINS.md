@@ -74,32 +74,79 @@ it must be the domain parents will actually open.
 
 ## What is free and what is paid
 
+The business model in one sentence: **build your first trip free; pay once to
+run it.**
+
 Free setup is the real application on the real database — not a demo, not a
-trial that expires. A church signs up, builds its trip, and sees the dashboard
-fill in. Nothing is ever deleted or locked for not paying, and declining costs
-them nothing they had already entered.
+trial that expires. Nothing is deleted or locked for not paying, gates sit on
+actions rather than on reading, and a church can always see and edit what it
+has already entered, medical notes and emergency contacts included.
 
-**Free, always:** creating the organization and trip, trip details, guardians,
-medical and emergency information, waiver templates, vehicles, rooms, itinerary,
-tasks, prayer focuses, payments tracking, the dashboard, and Trip Readiness — up
-to the first **10 attendees**.
+### Free setup includes
 
-**Requires lifetime access:**
+| | |
+| --- | --- |
+| Organization | Create it, edit it, open its settings |
+| Trips | **One trip**, fully editable — dates, destination, departure, notes |
+| Attendees | **Up to 10**, by any method: manual, bulk paste, CSV, Excel |
+| Import | Uploading, template downloads, the Google Sheets starter, column mapping, preview |
+| Attendee detail | Guardians, parent contacts, emergency contacts, allergies, conditions, medications, dietary needs, notes |
+| Emergency Info | Viewing **and editing** — never a paid feature |
+| Payments | Trip cost, per-person amounts, paid / partial / unpaid / scholarship / waived, balances |
+| Waivers | Create, edit, version, configure fields, and preview exactly as a parent sees it |
+| Vehicles | Create, drivers, capacities, assignments, auto-assign |
+| Lodging | Rooms, capacities, assignments, auto-assign |
+| Itinerary | Create, edit, delete, reorder |
+| Tasks | Create, complete, edit, delete, the default checklist |
+| Prayer | Prayer focuses, Pray Over The Group, marking it done |
+| Leader assignments | Responsibility planning |
+| Everything else | Dashboard, Trip Readiness, outstanding-item warnings, every screen |
+
+### Lifetime access is required for
 
 | Action | Why it is the line |
 | --- | --- |
+| A second trip | One trip is enough to see the product work |
 | Attendee #11 | The group is real now |
-| Generating waiver signing links | Sending a real parent a real link |
-| Inviting other leaders | More than one person running the trip |
-| Starting a headcount | Standing beside a van counting students |
-| The trip packet and printed reports | Paper going out the door |
+| Generating a waiver signing token or URL | Sending a real parent a real link |
+| Inviting additional leaders | More than one person running the trip |
+| Creating or recording a headcount | Standing beside a van counting students |
+| Trip packet and printable reports | Rosters, emergency sheets, missing forms, outstanding payments — paper going out the door |
 
-The gate is `requirePaidFeature` in `src/lib/access.ts`. It redirects rather
-than returning a flag, so a caller cannot forget to check it, and it runs before
-any work happens. Every gated path is covered by `tests/free-setup.mjs`,
-including typing the URL directly.
+Nothing else is gated. Login, password reset, organization creation and
+settings, the first trip, attendees 1–10, every entry method, template
+downloads, editing, deletion, and all viewing stay open.
 
----
+### Where the rules live
+
+One module: **`src/lib/entitlement.ts`**. It is pure policy — no database, no
+secrets — so the UI and the server action behind it ask the same function, and a
+hidden button and a blocked action cannot disagree.
+
+```
+hasFullAccess(organization)
+canCreateTrip(organization, existingTrips)
+canAddAttendee(organization, currentCount, adding)
+canCreateSigningLink(organization)
+canRunHeadcount(organization)
+canInviteLeader(organization)
+canGenerateTripPacket(organization)
+freeAttendeeSpotsLeft(organization, currentCount)
+```
+
+Enforcement is in **`src/lib/access.ts`**, beside the tenancy checks, so an
+action that resolves its organization has already resolved its entitlement — a
+gate can never be answered from an id the caller supplied. It redirects rather
+than returning a flag, because a caller cannot forget to check a redirect.
+
+Counted limits go through **`src/lib/capacity.ts`**, which takes a Postgres
+advisory lock on the organization and does the count and the write in one
+transaction. Without it, twenty simultaneous requests produce fifteen people
+instead of ten — `tests/limits.test.ts` asserts exactly that.
+
+The signing-link service checks entitlement itself, inside the function that
+mints the token, so no future caller can reach a usable link by forgetting a
+check of its own.
 
 ## Price
 

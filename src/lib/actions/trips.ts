@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireOrg, requireTrip } from "@/lib/access";
+import { createWithTripCapacity, requireOrg, requireTrip } from "@/lib/access";
 import { parseDateInput } from "@/lib/format";
 import type { FormState } from "@/lib/actions/auth";
 import { DEFAULT_TASKS } from "@/lib/trip-defaults";
@@ -58,49 +58,59 @@ export async function createTripAction(
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
+    return {
+      error: parsed.error.issues[0]?.message ?? "Please check the form.",
+    };
   }
   const data = parsed.data;
   if (data.startDate && data.endDate && data.endDate < data.startDate) {
     return { error: "The return date can't be before the departure date." };
   }
 
-  const trip = await prisma.trip.create({
-    data: {
-      organizationId: ctx.organization.id,
-      name: data.name,
-      destination: data.destination || null,
-      startDate: data.startDate,
-      endDate: data.endDate,
-      departureLocation: data.departureLocation || null,
-      costPerPerson: data.costPerPerson,
-      depositAmount: data.depositAmount,
-      tasks: {
-        create: DEFAULT_TASKS.map((task, index) => ({
-          title: task.title,
-          description: task.description,
-          isPrayerStep: task.isPrayerStep ?? false,
-          isDefault: true,
-          sortOrder: index,
-        })),
-      },
-      documentRequirements: {
-        create: DEFAULT_DOCUMENTS.map((name, index) => ({
-          name,
-          required: false,
-          sortOrder: index,
-        })),
-      },
-      leaderAssignments: {
-        create: DEFAULT_LEADER_ROLES.map((r, index) => ({
-          role: r.role,
-          required: r.required,
-          sortOrder: index,
-        })),
-      },
-    },
-    select: { id: true },
-  });
+  // Free setup includes one trip. The count and the insert happen under one
+  // lock, so a second trip is never created and then paywalled — and two
+  // simultaneous requests cannot both see an empty organization.
+  const trip = await createWithTripCapacity(
+    ctx,
+    (tx) =>
+      tx.trip.create({
+        data: {
+          organizationId: ctx.organization.id,
+          name: data.name,
+          destination: data.destination || null,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          departureLocation: data.departureLocation || null,
+          costPerPerson: data.costPerPerson,
+          depositAmount: data.depositAmount,
+          tasks: {
+            create: DEFAULT_TASKS.map((task, index) => ({
+              title: task.title,
+              description: task.description,
+              isPrayerStep: task.isPrayerStep ?? false,
+              isDefault: true,
+              sortOrder: index,
+            })),
+          },
+          documentRequirements: {
+            create: DEFAULT_DOCUMENTS.map((name, index) => ({
+              name,
+              required: false,
+              sortOrder: index,
+            })),
+          },
+          leaderAssignments: {
+            create: DEFAULT_LEADER_ROLES.map((r, index) => ({
+              role: r.role,
+              required: r.required,
+              sortOrder: index,
+            })),
+          },
+        },
+        select: { id: true },
+      }),
+    `/orgs/${orgSlug}`,
+  );
 
   redirect(`/orgs/${orgSlug}/trips/${trip.id}`);
 }
@@ -134,7 +144,9 @@ export async function updateTripAction(
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
+    return {
+      error: parsed.error.issues[0]?.message ?? "Please check the form.",
+    };
   }
   const data = parsed.data;
   if (data.startDate && data.endDate && data.endDate < data.startDate) {
@@ -172,13 +184,18 @@ export async function applyTripCostAction(tripId: string): Promise<FormState> {
     where: { id: tripId },
     select: { costPerPerson: true },
   });
-  if (!trip.costPerPerson) return { error: "Set a cost per person on the trip first." };
+  if (!trip.costPerPerson)
+    return { error: "Set a cost per person on the trip first." };
 
   // A scholarship or a waived fee is a decision someone already made. Sweeping
   // them into "set them all" would quietly bill the students a church chose to
   // cover, and nothing on screen would say it had happened.
   await prisma.attendee.updateMany({
-    where: { tripId, amountDue: 0, paymentStatus: { notIn: ["SCHOLARSHIP", "WAIVED"] } },
+    where: {
+      tripId,
+      amountDue: 0,
+      paymentStatus: { notIn: ["SCHOLARSHIP", "WAIVED"] },
+    },
     data: { amountDue: trip.costPerPerson },
   });
 
@@ -186,7 +203,10 @@ export async function applyTripCostAction(tripId: string): Promise<FormState> {
   return { ok: true };
 }
 
-export async function deleteTripAction(tripId: string, formData: FormData): Promise<void> {
+export async function deleteTripAction(
+  tripId: string,
+  formData: FormData,
+): Promise<void> {
   const ctx = await requireTrip(tripId);
   const confirmation = String(formData.get("confirmation") ?? "").trim();
 

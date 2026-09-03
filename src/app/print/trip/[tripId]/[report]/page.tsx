@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requirePaidFeature, requireTrip } from "@/lib/access";
+import { requireTrip, requireTripPacket } from "@/lib/access";
 import { loadTripPacket, type PacketSectionKey } from "@/lib/print-data";
 import { toNumber } from "@/lib/trip-data";
 import { displayName, money } from "@/lib/format";
@@ -42,7 +42,7 @@ export default async function PrintReportPage({
   if (!config) notFound();
 
   const ctx = await requireTrip(tripId);
-  requirePaidFeature(ctx, "trip-packet", `/orgs/${ctx.organization.slug}/trips/${tripId}`);
+  requireTripPacket(ctx, `/orgs/${ctx.organization.slug}/trips/${tripId}`);
   const data = await loadTripPacket(tripId);
 
   return (

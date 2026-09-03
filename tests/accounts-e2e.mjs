@@ -100,7 +100,7 @@ await church.click('button:has-text("Send invitation")');
 await church.waitForURL(/\/unlock/, { timeout: 30000 });
 check(
   "a church still in free setup is sent to unlock instead of inviting",
-  /feature=leader-invitations/.test(church.url()),
+  /gate=leader-invitations/.test(church.url()),
 );
 check(
   "and nothing was sent",

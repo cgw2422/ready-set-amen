@@ -11,7 +11,10 @@ export function SubmitButton({
 }: ComponentProps<typeof Button> & { pendingLabel?: string }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending} {...props}>
+    // disabled last: a spread that happened to carry `disabled` must not be
+    // able to re-enable a button that is already submitting, which is what
+    // stops a double tap creating two people.
+    <Button type="submit" {...props} disabled={pending || props.disabled}>
       {pending ? (pendingLabel ?? "Working…") : children}
     </Button>
   );

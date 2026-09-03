@@ -87,14 +87,36 @@ application — one Next.js build on one Railway service, split by hostname in
 `src/middleware.ts`. With the host variables unset, one host serves everything,
 which is how local development and the tests run.
 
-The product is **$14.99 once, for lifetime access**, with no subscription. A
-church signs up and builds a real trip for free; payment is asked for at the
-actions that mean the trip is really happening — the eleventh attendee, waiver
-signing links, leader invitations, headcounts, and the trip packet. Nothing is
-ever deleted or locked for not paying.
+The product is **$14.99 once, for lifetime access**, with no subscription.
+
+**Free setup:** one trip, up to 10 attendees, manual entry, CSV and Excel
+import, downloadable templates, a Google Sheets starter, and the whole planning
+experience — waivers built and previewed, vehicles, rooms, itinerary, tasks,
+prayer, payments, emergency info, Trip Readiness.
+
+**$14.99 lifetime unlocks:** unlimited trips, unlimited attendees, electronic
+waiver signing, live headcounts, multiple leaders, and trip packets and
+operational reports.
+
+Nothing is ever deleted or locked for not paying. The rules live in one place,
+`src/lib/entitlement.ts`, which the UI and every server action both read.
 
 See **[`docs/PRICING-AND-DOMAINS.md`](docs/PRICING-AND-DOMAINS.md)** for DNS,
-Stripe setup, the entitlement model, and how to grant access by hand.
+Stripe setup, the full free/paid table, and how to grant access by hand.
+
+---
+
+## Importing attendees
+
+Churches already have their people in a spreadsheet. **People → Import CSV /
+Excel** reads `.csv` and `.xlsx`, auto-maps the columns it recognises, lets you
+fix the rest, and shows a validated preview before anything is written. Import
+templates download from the app; a Google Sheets starter appears when
+`GOOGLE_SHEETS_TEMPLATE_URL` is set.
+
+The parser is first-party and deliberately cannot evaluate a formula, run a
+macro, or reach the network. See
+**[`docs/ATTENDEE-IMPORT.md`](docs/ATTENDEE-IMPORT.md)**.
 
 ---
 
@@ -125,6 +147,7 @@ TEST_DATABASE_URL=... npm run test:security   # tenancy, injection, XSS, tokens,
 TEST_DATABASE_URL=... npm run test:accounts   # password reset, invitations, roles, waiver gate
 TEST_DATABASE_URL=... npm run test:demo       # demo isolation, reset safety, signing security
 TEST_DATABASE_URL=... npm run test:billing    # entitlements, webhook signatures, idempotency
+TEST_DATABASE_URL=... npm run test:limits     # free limits under concurrent requests
 npm run test:e2e                              # full walkthrough at 390px
 node tests/day-of-trip.mjs                    # the morning-of workflow, timed
 node tests/accessibility.mjs                  # targets, contrast, keyboard, 200% text
