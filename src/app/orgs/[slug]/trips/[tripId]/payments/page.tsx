@@ -50,7 +50,14 @@ export default async function PaymentsPage({
   const totalDue = attendees.reduce((s, a) => s + toNumber(a.amountDue), 0);
   const totalPaid = attendees.reduce((s, a) => s + toNumber(a.amountPaid), 0);
   const outstanding = Math.max(0, totalDue - totalPaid);
-  const unset = attendees.filter((a) => toNumber(a.amountDue) === 0).length;
+  // Matches applyTripCostAction exactly: scholarships and waived fees are not
+  // "no amount set yet", they are an amount someone decided on.
+  const unset = attendees.filter(
+    (a) =>
+      toNumber(a.amountDue) === 0 &&
+      a.paymentStatus !== "SCHOLARSHIP" &&
+      a.paymentStatus !== "WAIVED",
+  ).length;
 
   return (
     <div className="space-y-5">

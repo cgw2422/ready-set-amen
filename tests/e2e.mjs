@@ -180,6 +180,65 @@ check(
 check("document snapshot rendered", /Assumption of Risk/.test(record));
 check("collected answers stored", /Peanuts/.test(record));
 
+log("Payments");
+await page.goto(`${tripUrl}/payments`);
+await page.waitForSelector("h1:has-text('Payments')");
+
+// Every action on this page comes from a different module, and one bad export
+// in any of them takes the whole page down — so both paths get exercised.
+// Put one person on a scholarship and clear another's fee, so "set them all"
+// has both a person to bill and a person it must not touch.
+const scholarName = (await page.locator("ul button").first().innerText()).split("\n")[0];
+await page.locator("ul button").first().click();
+await page.waitForSelector('input[name="amountDue"]');
+await page.selectOption('select[name="paymentStatus"]', "SCHOLARSHIP");
+await page.fill('input[name="amountDue"]', "0");
+await page.locator('button:has-text("Save")').first().click();
+await page.waitForTimeout(1500);
+
+await page.goto(`${tripUrl}/payments`);
+await page.waitForSelector("h1:has-text('Payments')");
+await page.locator("ul button").nth(1).click();
+await page.waitForSelector('input[name="amountDue"]');
+await page.fill('input[name="amountDue"]', "0");
+await page.locator('button:has-text("Save")').first().click();
+await page.waitForTimeout(1500);
+
+await page.goto(`${tripUrl}/payments`);
+await page.waitForSelector("h1:has-text('Payments')");
+check(
+  "a person with no fee set offers to apply the trip cost",
+  await page.locator('button:has-text("Set them all to")').isVisible(),
+);
+await page.click('button:has-text("Set them all to")');
+await page.waitForTimeout(2500);
+await page.goto(`${tripUrl}/payments`);
+await page.waitForSelector("h1:has-text('Payments')");
+const applied = await page.textContent("body");
+check("applying the trip cost does not crash the page", !/Application error/.test(applied));
+const scholarRow = await page.locator(`ul button:has-text("${scholarName}")`).first().innerText();
+check(
+  `and never bills a scholarship (${scholarName}: ${scholarRow.split("\n")[1] ?? "?"})`,
+  /of \$0\b/.test(scholarRow),
+);
+
+const owing = page.locator('button:has-text("$ left"), button:has-text("Unpaid")').first();
+if (await owing.count()) {
+  const name = (await owing.innerText()).split("\n")[0];
+  await owing.click();
+  await page.waitForSelector('input[name="amount"]');
+  await page.fill('input[name="amount"]', "25");
+  await page.locator('form button[type="submit"]:visible').first().click();
+  await page.waitForTimeout(2000);
+  check("recording a payment does not crash the page", !/Application error/.test(await page.textContent("body")));
+  await page.goto(`${tripUrl}/payments`);
+  await page.waitForSelector("h1:has-text('Payments')");
+  check(
+    `the payment is reflected against ${name}`,
+    /\$\d[\d,.]* of \$/.test(await page.textContent("body")),
+  );
+}
+
 log("Auto assign vehicles and rooms");
 await page.goto(`${tripUrl}/transportation`);
 await page.waitForSelector("text=Auto assign");

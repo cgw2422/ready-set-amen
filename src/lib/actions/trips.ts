@@ -7,28 +7,7 @@ import { prisma } from "@/lib/db";
 import { requireOrg, requireTrip } from "@/lib/access";
 import { parseDateInput } from "@/lib/format";
 import type { FormState } from "@/lib/actions/auth";
-
-/** Seeded on every new trip. The prayer step is always last and always present. */
-export const DEFAULT_TASKS: { title: string; description?: string; isPrayerStep?: boolean }[] = [
-  { title: "Collect Waivers" },
-  { title: "Collect Other Forms" },
-  { title: "Collect Payments" },
-  { title: "Confirm Transportation" },
-  { title: "Confirm Drivers" },
-  { title: "Confirm Lodging" },
-  { title: "Confirm Registration" },
-  { title: "Prepare Emergency Information" },
-  { title: "Pack First Aid Kit" },
-  { title: "Leader Meeting" },
-  { title: "Prepare Snacks" },
-  { title: "Final Headcount Setup" },
-  {
-    title: "Pray Over The Group",
-    description:
-      "Take time with your leaders to pray over every person, the travel, the services, the ministry, and what God wants to accomplish through this trip.",
-    isPrayerStep: true,
-  },
-];
+import { DEFAULT_TASKS } from "@/lib/trip-defaults";
 
 const DEFAULT_DOCUMENTS = [
   "Insurance Card",
@@ -195,8 +174,11 @@ export async function applyTripCostAction(tripId: string): Promise<FormState> {
   });
   if (!trip.costPerPerson) return { error: "Set a cost per person on the trip first." };
 
+  // A scholarship or a waived fee is a decision someone already made. Sweeping
+  // them into "set them all" would quietly bill the students a church chose to
+  // cover, and nothing on screen would say it had happened.
   await prisma.attendee.updateMany({
-    where: { tripId, amountDue: 0 },
+    where: { tripId, amountDue: 0, paymentStatus: { notIn: ["SCHOLARSHIP", "WAIVED"] } },
     data: { amountDue: trip.costPerPerson },
   });
 

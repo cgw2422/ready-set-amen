@@ -15,7 +15,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
-    "test": "tsx --test tests/readiness.test.ts tests/auto-assign.test.ts tests/crypto.test.ts tests/waiver-content.test.ts",
+    "test": "tsx --test tests/readiness.test.ts tests/auto-assign.test.ts tests/crypto.test.ts tests/waiver-content.test.ts tests/server-actions.test.ts",
     "test:e2e": "node tests/e2e.mjs",
     "start:railway": "node scripts/railway-start.mjs",
     "seed:demo": "tsx prisma/seed.ts",
