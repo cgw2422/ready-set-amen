@@ -5,6 +5,7 @@ import { formatDateRange } from "@/lib/format";
 import { Badge, Card, EmptyState, LinkButton } from "@/components/ui";
 import { LogoLockup } from "@/components/brand";
 import { OrgMenu } from "@/components/org-menu";
+import { isPlatformAdmin } from "@/lib/platform";
 import { FreeSetupBadge } from "@/components/free-setup-badge";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +56,7 @@ export default async function OrgTripsPage({ params }: { params: Promise<{ slug:
       <header className="border-b border-line bg-white">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-5 py-4">
           <LogoLockup href={`/orgs/${slug}`} />
-          <OrgMenu slug={slug} />
+          <OrgMenu slug={slug} platformAdmin={await isPlatformAdmin()} />
         </div>
       </header>
 

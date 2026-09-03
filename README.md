@@ -138,6 +138,23 @@ See **[`docs/DEMO.md`](docs/DEMO.md)**.
 
 ---
 
+## Platform admin
+
+`/admin` shows how the business is doing — accounts created, churches created,
+trips started, purchases and revenue — with the demo organization excluded from
+every number. Access is a role on the account, granted from a shell:
+
+```bash
+npm run admin:grant -- you@example.com        # after signing up normally
+```
+
+It is read-only and cannot look inside a church: no attendee records, no medical
+or emergency information, no waiver answers, no tokens. Owning a church grants
+nothing there, and holding it grants nothing in any church.
+See **[`docs/PLATFORM-ADMIN.md`](docs/PLATFORM-ADMIN.md)**.
+
+---
+
 ## Tests
 
 ```bash
@@ -148,10 +165,13 @@ TEST_DATABASE_URL=... npm run test:accounts   # password reset, invitations, rol
 TEST_DATABASE_URL=... npm run test:demo       # demo isolation, reset safety, signing security
 TEST_DATABASE_URL=... npm run test:billing    # entitlements, webhook signatures, idempotency
 TEST_DATABASE_URL=... npm run test:limits     # free limits under concurrent requests
+TEST_DATABASE_URL=... npm run test:admin      # platform metrics, demo exclusion, data boundary
 npm run test:e2e                              # full walkthrough at 390px
 node tests/day-of-trip.mjs                    # the morning-of workflow, timed
 node tests/accessibility.mjs                  # targets, contrast, keyboard, 200% text
 node tests/accounts-e2e.mjs                   # reset + invitations in the browser (dev server)
+node tests/free-setup.mjs                     # the free-to-paid boundary, attacked directly
+node tests/admin-e2e.mjs                      # platform authorization, attacked directly
 ```
 
 The browser suites need a running server; point them with `E2E_BASE_URL`.

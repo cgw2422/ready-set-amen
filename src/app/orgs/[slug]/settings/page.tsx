@@ -4,6 +4,7 @@ import { mailEnabled } from "@/lib/mailer";
 import { Card } from "@/components/ui";
 import { LogoLockup } from "@/components/brand";
 import { OrgMenu } from "@/components/org-menu";
+import { isPlatformAdmin } from "@/lib/platform";
 import { OrgSettingsForm } from "./org-settings-form";
 import { TeamManager } from "./team-manager";
 import { DeleteOrganizationCard } from "./delete-organization";
@@ -68,7 +69,7 @@ export default async function OrgSettingsPage({
       <header className="border-b border-line bg-white">
         <div className="mx-auto flex w-full max-w-2xl items-center justify-between px-5 py-4">
           <LogoLockup href={`/orgs/${slug}`} />
-          <OrgMenu slug={slug} />
+          <OrgMenu slug={slug} platformAdmin={await isPlatformAdmin()} />
         </div>
       </header>
 

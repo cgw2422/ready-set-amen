@@ -81,6 +81,20 @@ things in the database.
 Optionally set `APP_URL` to your final domain (especially if you add a custom
 domain later, since signing links must point at the domain parents will open).
 
+### Give yourself the platform admin role
+
+`/admin` — the accounts, churches, trips and revenue numbers — is a role on your
+account, not a password. From the service shell, once the account above exists:
+
+```bash
+npm run admin:grant -- you@example.com
+npm run admin:list
+```
+
+Then open `https://<your-app-domain>/admin`. Owning a church does not grant it,
+and it grants nothing inside any church.
+See **[docs/PLATFORM-ADMIN.md](./PLATFORM-ADMIN.md)**.
+
 ---
 
 ## Domains and payment

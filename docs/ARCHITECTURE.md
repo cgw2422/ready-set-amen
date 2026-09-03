@@ -754,12 +754,51 @@ reads a gift as revenue.
 
 ---
 
+## 11c. Platform admin
+
+**Two role systems that never touch.** `OrganizationMember.role` is authority
+inside one church. `User.platformRole` is authority over Ready Set Amen itself.
+Neither is derived from the other: an owner of a paid church has no platform
+access, and a platform admin gains no membership, no roster and no ability to
+change any church. Collapsing them into one "role" column would have made the
+owner of the biggest church one migration away from the revenue numbers.
+
+**The role is granted from a shell.** `npm run admin:grant -- email` sets it;
+there is no HTTP route, no signup flag and no password, so handing it out
+requires deploy access. Nothing anywhere compares an email address to decide
+who is an admin.
+
+**Checked per request, on the page.** `requirePlatformAdmin()` re-reads the role
+from the database on every request and every page calls it directly — a layout
+is not an authorization boundary in the App Router. Failing the check renders a
+404 rather than a 403, so the URL tells an unauthorized visitor nothing. Because
+the role is never cached in the session, a revoke takes effect on the next
+request rather than at the next login.
+
+**Aggregates, not records.** Every admin query names its columns, so medical
+notes, emergency contacts, waiver answers, signatures, password hashes and every
+token are absent by construction rather than filtered out afterwards. The area
+is read-only: no server action, no route handler, no impersonation.
+
+**Demo and system data are excluded by a column, not a guess.**
+`Organization.isDemo` and `User.isSystem` are written when the showcase is
+seeded, so renaming it changes no number. Revenue sums each purchase's own
+`amountCents` rather than multiplying a count by today's price, and a
+MANUAL_GRANT is never a conversion and never revenue.
+
+---
+
 ## 12. Non-goals restated
 
 No native apps. No AI. No SMS. No chat. No social graph. No church membership
 database. No giving. No parent accounts. No arbitrary PDF editing. No
-AI-generated legal language, ever. No subscriptions, no billing portal, no
-admin panel, and no permissions matrix.
+AI-generated legal language, ever. No subscriptions, no billing portal, and no
+permissions matrix.
+
+The platform admin area (§11c) is the one deliberate exception, and only in the
+narrow sense: it reports how the business is doing and can change nothing. There
+is still no church-facing admin panel, no impersonation, and no way for anyone
+operating Ready Set Amen to read a church's attendee data.
 
 Payment processing here means one thing only: a church buying Ready Set Amen
 once, through Stripe's hosted Checkout. Ready Set Amen still does not collect

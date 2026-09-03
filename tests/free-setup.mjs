@@ -204,7 +204,19 @@ function csv(rows) {
 async function importFile(path) {
   await page.goto(`${tripUrl}/people/import`);
   await page.setInputFiles('input[type="file"]', path);
-  await page.locator('button:has-text("Continue"), button:has-text("Re-read")').first().click();
+  // Wait for the button to notice the file, so a slow hydration reads as a
+  // failure of this step rather than as a mystery click timeout.
+  const go = page.locator('button:has-text("Continue"), button:has-text("Re-read")').first();
+  await go.waitFor({ state: "visible" });
+  await page.waitForFunction(
+    () =>
+      ![...document.querySelectorAll("button")].find((b) =>
+        /Continue|Re-read/.test(b.textContent ?? ""),
+      )?.disabled,
+    undefined,
+    { timeout: 30000 },
+  );
+  await go.click();
   await page.waitForSelector("text=Preview", { timeout: 30000 });
 }
 

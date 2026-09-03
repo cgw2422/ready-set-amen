@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   confirmImportAction,
   previewImportAction,
@@ -58,6 +58,15 @@ export function ImportFlow({
 
   const [mapping, setMapping] = useState<Array<ImportField | null> | null>(null);
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
+
+  // A leader on a slow phone can pick a file before this component hydrates,
+  // and that change event fires into nothing — leaving a chosen file sitting in
+  // the input with Continue still disabled. Adopt whatever is already there.
+  const fileInput = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    const chosen = fileInput.current?.files?.[0];
+    if (chosen) setFile((current) => current ?? chosen);
+  }, []);
 
   /** Both steps post the same file; only the extra fields differ. */
   const payload = (extra?: Record<string, string>) => {
@@ -159,6 +168,7 @@ export function ImportFlow({
               Your spreadsheet
             </span>
             <input
+              ref={fileInput}
               type="file"
               name="file"
               accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

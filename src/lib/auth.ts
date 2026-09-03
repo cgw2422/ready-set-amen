@@ -47,6 +47,13 @@ export async function createSession(userId: string, ua?: string) {
     },
   });
 
+  // Recorded on the user, not inferred from sessions: those are deleted on
+  // logout, on password reset, and when they expire, so they cannot answer
+  // "when did this person last use Ready Set Amen?".
+  await prisma.user
+    .update({ where: { id: userId }, data: { lastSignInAt: new Date() } })
+    .catch(() => undefined);
+
   const jar = await cookies();
   jar.set(COOKIE_NAME, token, {
     httpOnly: true,

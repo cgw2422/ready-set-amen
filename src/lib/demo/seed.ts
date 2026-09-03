@@ -189,8 +189,11 @@ export async function seedDemoOrganization(options: {
       firstName: "Jamie",
       lastName: "Rivera",
       passwordHash: await hashPassword(password),
+      // Marked so platform analytics never counts the showcase as a signup.
+      // A durable flag rather than matching on an email string.
+      isSystem: true,
     },
-    update: { passwordHash: await hashPassword(password) },
+    update: { passwordHash: await hashPassword(password), isSystem: true },
     select: { id: true },
   });
 

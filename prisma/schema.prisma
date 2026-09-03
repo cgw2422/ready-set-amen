@@ -23,11 +23,35 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  /// Platform-level authorization, deliberately separate from
+  /// OrganizationMember.role. Owning a church grants nothing here, and holding
+  /// this grants nothing inside any church. See docs/ARCHITECTURE.md §11c.
+  platformRole PlatformRole @default(USER)
+
+  /// Marks an account the platform created for itself — today only the demo
+  /// church's owner. A durable flag rather than matching on an email string,
+  /// so real signups are never miscounted as fixtures.
+  isSystem Boolean @default(false)
+
+  /// Last successful sign-in. Kept on the user rather than inferred from
+  /// sessions, which are deleted on logout, on password reset and when they
+  /// expire. Written once per login.
+  lastSignInAt DateTime?
+
   sessions            Session[]
   memberships         OrganizationMember[]
   passwordResetTokens PasswordResetToken[]
 
+  @@index([platformRole])
   @@map("users")
+}
+
+/// Platform-level roles. USER is everyone; PLATFORM_ADMIN can read the
+/// business analytics at /admin and nothing else — it confers no access to any
+/// church's data beyond the aggregate counts shown there.
+enum PlatformRole {
+  USER
+  PLATFORM_ADMIN
 }
 
 model Session {

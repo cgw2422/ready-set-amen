@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-export function OrgMenu({ slug }: { slug: string }) {
+export function OrgMenu({ slug, platformAdmin = false }: { slug: string; platformAdmin?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -63,6 +63,17 @@ export function OrgMenu({ slug }: { slug: string }) {
           <Link href="/orgs" className="block px-4 py-3 text-sm hover:bg-cream" role="menuitem">
             Switch organization
           </Link>
+          {/* Shown only to a platform admin, but the link is not what grants
+              access — every /admin page checks the role for itself. */}
+          {platformAdmin ? (
+            <Link
+              href="/admin"
+              className="block border-t border-line px-4 py-3 text-sm font-semibold text-navy hover:bg-cream"
+              role="menuitem"
+            >
+              Platform admin
+            </Link>
+          ) : null}
           <form action="/logout" method="post">
             <button
               type="submit"
