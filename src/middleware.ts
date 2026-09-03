@@ -30,7 +30,9 @@ export function middleware(request: NextRequest) {
 
   if (isSharedPath(pathname)) return NextResponse.next();
 
-  // www is never a site of its own; it only points at the marketing home.
+  // A safety net rather than the usual path: www is normally redirected at the
+  // DNS provider and never reaches the app at all. This only fires if someone
+  // points www at this service.
   if (host === `www.${marketing}`) {
     return NextResponse.redirect(new URL(`https://${marketing}${pathname}${search}`), 308);
   }

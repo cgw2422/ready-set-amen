@@ -24,7 +24,7 @@ which host owns which path:
 | Request | Result |
 | --- | --- |
 | `readysetamen.com/` | The marketing page |
-| `www.readysetamen.com/*` | 308 to `readysetamen.com/*` |
+| `www.readysetamen.com/*` | 308 to `readysetamen.com/*` (only if www reaches the app; normally your DNS provider redirects it) |
 | `readysetamen.com/orgs/…` | 307 to `app.readysetamen.com/orgs/…` |
 | `app.readysetamen.com/` | 307 to `/orgs` — someone signed in wants their trips |
 | `/api/*`, `/legal/*`, `/_next/*` | Served from whichever host asked |
@@ -36,13 +36,30 @@ have both domains.
 
 ### DNS
 
+Only two hostnames need to reach the application:
+
 | Record | Name | Value |
 | --- | --- | --- |
-| CNAME | `@` (or ALIAS/ANAME) | your Railway domain |
-| CNAME | `www` | your Railway domain |
+| ALIAS / ANAME / CNAME | `@` | your Railway domain |
 | CNAME | `app` | your Railway domain |
 
-Add all three as custom domains on the same Railway service, then set:
+Add both as custom domains on the same Railway service.
+
+**`www` is handled outside the app.** Railway plans cap the number of custom
+domains, and `www` does not need one: it is a redirect, not a site. Point it at
+`readysetamen.com` with a redirect rule at your DNS provider — Cloudflare's
+Redirect Rules, Netlify DNS, or your registrar's URL forwarding.
+
+Check that the redirect works over **https**, not just http. Plain registrar URL
+forwarding often has no certificate for `www`, so visitors get a browser
+security warning before the redirect ever happens. Cloudflare (free, proxied)
+issues a certificate covering `www` and does the redirect properly.
+
+The middleware still redirects `www.<marketing host>` to the apex if such a
+request ever reaches the app. That is a safety net for the day `www` does point
+at the service; it is not what handles `www` in this setup.
+
+With DNS in place, set:
 
 ```
 MARKETING_HOST=readysetamen.com

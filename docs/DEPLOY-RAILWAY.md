@@ -84,8 +84,9 @@ domain later, since signing links must point at the domain parents will open).
 
 ## Domains and payment
 
-Point `@`, `www` and `app` at this one service, then set `MARKETING_HOST` and
-`APP_HOST`. Stripe needs a webhook at `https://app.readysetamen.com/api/stripe/webhook`
+Point `@` and `app` at this one service as custom domains, then set
+`MARKETING_HOST` and `APP_HOST`. `www` needs no custom domain — redirect it to
+the apex at your DNS provider instead, and check the redirect works over https. Stripe needs a webhook at `https://app.readysetamen.com/api/stripe/webhook`
 for `checkout.session.completed`. Both are covered in
 **[docs/PRICING-AND-DOMAINS.md](./PRICING-AND-DOMAINS.md)**.
 
