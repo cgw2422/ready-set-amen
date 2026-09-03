@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { submitSignatureAction, type SignState } from "@/lib/actions/sign";
 import {
   ELECTRONIC_CONSENT_TEXT,
@@ -35,6 +35,47 @@ type Props = {
 export function SigningForm(props: Props) {
   const [state, action] = useActionState(submitSignatureAction, initial);
   const [step, setStep] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  const stepRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const errorRef = useRef<HTMLDivElement>(null);
+  // A control the browser refused to submit on, waiting for its step to be shown.
+  const blocked = useRef<HTMLElement | null>(null);
+
+  // Every hook runs before the success screen returns early below.
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    // `invalid` does not bubble, so listen in the capture phase. A required
+    // control on a hidden step cannot be focused, so the browser blocks the
+    // submit and shows nothing at all — reveal the step that is blocking it.
+    const onInvalid = (event: Event) => {
+      const target = event.target as HTMLElement;
+      const index = stepRefs.current.findIndex((el) => el?.contains(target));
+      if (index < 0 || index === step) return;
+      event.preventDefault();
+      blocked.current = target;
+      setStep(index);
+    };
+    form.addEventListener("invalid", onInvalid, true);
+    return () => form.removeEventListener("invalid", onInvalid, true);
+  }, [step]);
+
+  useEffect(() => {
+    const control = blocked.current;
+    if (!control) return;
+    blocked.current = null;
+    control.scrollIntoView({ block: "center" });
+    (control as HTMLInputElement).reportValidity?.();
+  }, [step]);
+
+  // The error renders at the top of the form; a phone signing from the bottom
+  // of step 3 would otherwise see the tap do nothing at all.
+  useEffect(() => {
+    if (!state.error) return;
+    errorRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    errorRef.current?.focus();
+  }, [state.error]);
+
   const isGuardian = props.signerRole === "GUARDIAN";
   const sections = enabledSections(props.content);
   const fields = props.content.fields.filter((f) => f.enabled);
@@ -61,6 +102,32 @@ export function SigningForm(props: Props) {
   };
 
   const steps = ["Your information", "Review the waiver", "Sign"];
+
+  const controlsIn = (index: number) =>
+    Array.from(
+      stepRefs.current[index]?.querySelectorAll<
+        HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+      >("input, textarea, select") ?? [],
+    );
+
+  /**
+   * Moving forward validates the step you are leaving. Without this a parent
+   * can walk past a required field, and the browser then refuses to submit from
+   * the last step with nothing on screen to explain why.
+   */
+  const goToStep = (next: number) => {
+    if (next > step) {
+      for (const control of controlsIn(step)) {
+        if (!control.checkValidity()) {
+          control.scrollIntoView({ block: "center" });
+          control.reportValidity();
+          return;
+        }
+      }
+    }
+    setStep(next);
+  };
+
 
   return (
     <main className="mx-auto w-full max-w-lg px-4 pb-16 pt-6">
@@ -103,12 +170,21 @@ export function SigningForm(props: Props) {
         ))}
       </ol>
 
-      <form action={action} className="mt-5 space-y-4">
+      <form ref={formRef} action={action} className="mt-5 space-y-4">
         <input type="hidden" name="token" value={props.token} />
-        {state.error ? <Alert tone="error">{state.error}</Alert> : null}
+        {state.error ? (
+          <div ref={errorRef} tabIndex={-1} className="scroll-mt-6 outline-none">
+            <Alert tone="error">{state.error}</Alert>
+          </div>
+        ) : null}
 
         {/* Step 1 — information -------------------------------------------- */}
-        <div className={step === 0 ? "space-y-4" : "hidden"}>
+        <div
+          ref={(el) => {
+            stepRefs.current[0] = el;
+          }}
+          className={step === 0 ? "space-y-4" : "hidden"}
+        >
           <Card className="p-4">
             <p className="mb-3 font-display text-base font-bold text-navy">
               A few details about {isGuardian ? props.participantName : "you"}
@@ -120,12 +196,14 @@ export function SigningForm(props: Props) {
                     <Textarea
                       name={`field_${field.key}`}
                       rows={2}
+                      required={field.required}
                       defaultValue={prefill(field.key)}
                       placeholder="None"
                     />
                   ) : (
                     <Input
                       name={`field_${field.key}`}
+                      required={field.required}
                       type={field.type === "date" ? "date" : field.type === "email" ? "email" : field.type === "tel" ? "tel" : "text"}
                       inputMode={field.type === "tel" ? "tel" : field.type === "email" ? "email" : undefined}
                       defaultValue={prefill(field.key)}
@@ -137,22 +215,27 @@ export function SigningForm(props: Props) {
               {props.content.customQuestions.map((question) => (
                 <Field key={question.key} label={question.label} required={question.required}>
                   {question.type === "textarea" ? (
-                    <Textarea name={`field_${question.key}`} rows={2} />
+                    <Textarea name={`field_${question.key}`} rows={2} required={question.required} />
                   ) : (
-                    <Input name={`field_${question.key}`} />
+                    <Input name={`field_${question.key}`} required={question.required} />
                   )}
                 </Field>
               ))}
             </div>
           </Card>
 
-          <Button type="button" size="lg" className="w-full" onClick={() => setStep(1)}>
+          <Button type="button" size="lg" className="w-full" onClick={() => goToStep(1)}>
             Continue to the waiver
           </Button>
         </div>
 
         {/* Step 2 — the document ------------------------------------------- */}
-        <div className={step === 1 ? "space-y-4" : "hidden"}>
+        <div
+          ref={(el) => {
+            stepRefs.current[1] = el;
+          }}
+          className={step === 1 ? "space-y-4" : "hidden"}
+        >
           <Card className="p-5">
             <h1 className="font-display text-xl font-extrabold text-navy">
               {props.content.waiverTitle}
@@ -191,17 +274,22 @@ export function SigningForm(props: Props) {
           ) : null}
 
           <div className="flex gap-3">
-            <Button type="button" variant="secondary" size="lg" onClick={() => setStep(0)}>
+            <Button type="button" variant="secondary" size="lg" onClick={() => goToStep(0)}>
               Back
             </Button>
-            <Button type="button" size="lg" className="flex-1" onClick={() => setStep(2)}>
+            <Button type="button" size="lg" className="flex-1" onClick={() => goToStep(2)}>
               Continue to sign
             </Button>
           </div>
         </div>
 
         {/* Step 3 — sign ---------------------------------------------------- */}
-        <div className={step === 2 ? "space-y-4" : "hidden"}>
+        <div
+          ref={(el) => {
+            stepRefs.current[2] = el;
+          }}
+          className={step === 2 ? "space-y-4" : "hidden"}
+        >
           <Card className="p-4">
             <p className="mb-3 font-display text-base font-bold text-navy">Who is signing?</p>
             <div className="space-y-3">
@@ -316,7 +404,7 @@ export function SigningForm(props: Props) {
           </Card>
 
           <div className="flex gap-3">
-            <Button type="button" variant="secondary" size="lg" onClick={() => setStep(1)}>
+            <Button type="button" variant="secondary" size="lg" onClick={() => goToStep(1)}>
               Back
             </Button>
             <SubmitButton size="lg" className="flex-1" pendingLabel="Signing…">

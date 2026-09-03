@@ -107,6 +107,28 @@ check(
   (await guest.cookies()).every((c) => c.name !== "rsa_session"),
 );
 
+// A required field left blank must stop the signer here, at the field, rather
+// than letting them walk to the end and have "Sign waiver" do nothing.
+await signer.click('button:has-text("Continue to the waiver")');
+check(
+  "a blank required field holds the signer on step 1",
+  await signer.locator('button:has-text("Continue to the waiver")').isVisible(),
+);
+check(
+  "and puts the cursor in the field that is missing",
+  (await signer.evaluate(() => document.activeElement?.getAttribute("name"))) ===
+    "field_emergencyContactName",
+);
+check(
+  "with that field scrolled into view",
+  await signer.evaluate(() => {
+    const el = document.querySelector('[name="field_emergencyContactName"]');
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    return r.top >= 0 && r.bottom <= window.innerHeight;
+  }),
+);
+
 await signer.fill('input[name="field_emergencyContactName"]', "Rosa Mercer");
 await signer.fill('input[name="field_emergencyContactPhone"]', "615-555-0199");
 await signer.fill('textarea[name="field_allergies"]', "Peanuts");
