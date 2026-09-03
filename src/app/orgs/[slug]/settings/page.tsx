@@ -7,6 +7,8 @@ import { OrgMenu } from "@/components/org-menu";
 import { OrgSettingsForm } from "./org-settings-form";
 import { TeamManager } from "./team-manager";
 import { DeleteOrganizationCard } from "./delete-organization";
+import { AccessCard } from "./access-card";
+import { latestPurchase } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Organization settings" };
@@ -59,6 +61,8 @@ export default async function OrgSettingsPage({
     organization.members.map((m) => [m.userId, `${m.user.firstName} ${m.user.lastName}`.trim()]),
   );
 
+  const purchase = await latestPurchase(ctx.organization.id);
+
   return (
     <div className="min-h-dvh bg-cream pb-16">
       <header className="border-b border-line bg-white">
@@ -99,6 +103,13 @@ export default async function OrgSettingsPage({
             invitedBy: inviterNames.get(i.invitedByUserId) ?? "An owner",
             expiresAt: i.expiresAt.toISOString(),
           }))}
+        />
+
+        <AccessCard
+          slug={slug}
+          entitlement={ctx.organization.entitlement}
+          canBuy={owner}
+          purchase={purchase}
         />
 
         {organization.waiverTermsAcceptedAt ? (

@@ -65,6 +65,11 @@ model Organization {
   waiverTermsAcceptedBy String?
   waiverTermsText       String?
 
+  /// What this church has paid for. The entitlement lives on the organization,
+  /// not the user: when an owner buys, every leader they invite is covered and
+  /// nobody pays twice. See docs/ARCHITECTURE.md §11b.
+  entitlement Entitlement @default(FREE_SETUP)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -72,9 +77,62 @@ model Organization {
   trips           Trip[]
   waiverTemplates WaiverTemplate[]
   invitations     OrganizationInvitation[]
+  purchases       Purchase[]
 
   @@index([isDemo])
+  @@index([entitlement])
   @@map("organizations")
+}
+
+/// FREE_SETUP is a real, working account that has not paid yet — not a demo and
+/// not a trial that expires. LIFETIME is a completed Stripe purchase.
+/// MANUAL_LIFETIME is the same access granted from the CLI for a pilot church or
+/// a support case, kept distinct so nothing ever reports a gift as revenue.
+/// DEMO is the showcase organization, which has no purchase at all.
+enum Entitlement {
+  FREE_SETUP
+  LIFETIME
+  MANUAL_LIFETIME
+  DEMO
+}
+
+enum PurchaseSource {
+  STRIPE_CHECKOUT
+  MANUAL_GRANT
+}
+
+/// One row per completed purchase or grant. Append-only history: an
+/// organization's current access is Organization.entitlement, and this is the
+/// record of how it got there.
+model Purchase {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  source      PurchaseSource
+  entitlement Entitlement
+
+  /// What was actually charged, in the smallest currency unit. Zero for a grant.
+  amountCents Int
+  currency    String @default("usd")
+
+  /// Stripe's own identifiers, kept for reconciliation and support. No card
+  /// details are ever received or stored — Checkout is hosted by Stripe.
+  stripeCustomerId        String?
+  stripeCheckoutSessionId String? @unique
+  stripePaymentIntentId   String?
+  stripeProductId         String?
+  stripePriceId           String?
+
+  /// Who clicked buy, or which operator ran the grant. Null if the user is gone.
+  purchasedByUserId String?
+  /// Free text for a manual grant: which pilot church, which support ticket.
+  grantReason       String?
+
+  purchasedAt DateTime @default(now())
+
+  @@index([organizationId])
+  @@map("purchases")
 }
 
 /// Deliberately coarse (docs/ARCHITECTURE.md §10): there is no permissions

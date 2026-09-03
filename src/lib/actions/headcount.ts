@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireTrip } from "@/lib/access";
+import { requireTrip, requirePaidFeature } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import type { HeadcountScope } from "@prisma/client";
 import type { FormState } from "@/lib/actions/auth";
@@ -19,6 +19,7 @@ export async function startHeadcountAction(
   formData: FormData,
 ): Promise<FormState> {
   const ctx = await requireTrip(tripId);
+  requirePaidFeature(ctx, "headcount", `/orgs/${ctx.organization.slug}/trips/${tripId}/headcount`);
 
   const scopeRaw = String(formData.get("scope") ?? "TRIP");
   const scope: HeadcountScope = ["TRIP", "VEHICLE", "ROOM", "CUSTOM"].includes(scopeRaw)

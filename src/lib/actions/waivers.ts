@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireOrg, requireOrgById, requireTrip } from "@/lib/access";
+import { requireOrg, requireOrgById, requireTrip, requirePaidFeature } from "@/lib/access";
 import { hashDocument } from "@/lib/crypto";
 import { emptyContent, waiverContentSchema } from "@/lib/waiver-content";
 import { issueSigningLink, syncWaiverRecipients } from "@/lib/waiver-service";
@@ -276,6 +276,11 @@ export type LinkResult = { name: string; url: string };
 
 export async function generateSigningLinkAction(recipientId: string): Promise<LinkResult> {
   const { recipient, ctx } = await recipientTrip(recipientId);
+  requirePaidFeature(
+    ctx,
+    "waiver-signing-links",
+    `/orgs/${ctx.organization.slug}/trips/${recipient.requirement.tripId}/waivers`,
+  );
   if (recipient.status === "SIGNED") throw new Error("That waiver is already signed.");
 
   const url = await issueSigningLink(recipientId, ctx.userId);
@@ -294,6 +299,11 @@ export async function generateLinksForUnsignedAction(
   recipientIds?: string[],
 ): Promise<LinkResult[]> {
   const ctx = await requireTrip(tripId);
+  requirePaidFeature(
+    ctx,
+    "waiver-signing-links",
+    `/orgs/${ctx.organization.slug}/trips/${tripId}/waivers`,
+  );
 
   const recipients = await prisma.waiverRecipient.findMany({
     where: {
@@ -351,6 +361,11 @@ export async function emailSigningLinkAction(recipientId: string): Promise<FormS
     return { error: "Email isn't set up for this app yet. Use Copy Link instead." };
   }
   const { recipient, ctx } = await recipientTrip(recipientId);
+  requirePaidFeature(
+    ctx,
+    "waiver-signing-links",
+    `/orgs/${ctx.organization.slug}/trips/${recipient.requirement.tripId}/waivers`,
+  );
 
   const detail = await prisma.waiverRecipient.findUniqueOrThrow({
     where: { id: recipientId },

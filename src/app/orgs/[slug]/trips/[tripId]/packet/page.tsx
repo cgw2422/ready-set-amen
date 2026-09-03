@@ -1,4 +1,4 @@
-import { requireTrip } from "@/lib/access";
+import { requirePaidFeature, requireTrip } from "@/lib/access";
 import { DEFAULT_PACKET_SECTIONS, PACKET_SECTIONS } from "@/lib/print-data";
 import { PacketBuilder } from "./packet-builder";
 
@@ -21,8 +21,9 @@ export default async function PacketPage({
 }: {
   params: Promise<{ slug: string; tripId: string }>;
 }) {
-  const { tripId } = await params;
-  await requireTrip(tripId);
+  const { slug, tripId } = await params;
+  const ctx = await requireTrip(tripId);
+  requirePaidFeature(ctx, "trip-packet", `/orgs/${slug}/trips/${tripId}`);
 
   return (
     <div className="space-y-5">

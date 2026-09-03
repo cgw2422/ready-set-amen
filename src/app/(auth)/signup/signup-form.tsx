@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { signupAction, type FormState } from "@/lib/actions/auth";
 import { Alert, Field, Input } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
+import { LAUNCH_PRICE } from "@/lib/pricing";
 import { LogoLockup } from "@/components/brand";
 
 const initial: FormState = {};
@@ -17,8 +18,22 @@ export function SignupForm({ invite }: { invite: string }) {
       <div className="mb-8 flex justify-center">
         <LogoLockup />
       </div>
-      <h1 className="font-display text-3xl font-extrabold text-navy">Let&rsquo;s get you ready.</h1>
-      <p className="mt-1 text-navy-soft">Create your account. It takes about a minute.</p>
+      <h1 className="font-display text-3xl font-extrabold text-navy">
+        Create your Ready Set Amen account.
+      </h1>
+      <p className="mt-1 text-navy-soft">
+        Start building your first church trip free. No card required.
+      </p>
+
+      {/* The price is stated up front, at normal reading size. Someone should
+          never discover what this costs only after they have done the work. */}
+      {invite ? null : (
+        <p className="mt-4 rounded-xl bg-gold-soft px-4 py-3 text-sm leading-relaxed text-navy">
+          Ready Set Amen is <strong className="font-bold">{LAUNCH_PRICE} lifetime</strong> during our
+          launch period. You&rsquo;ll only be asked to pay once you&rsquo;re ready to use your trip
+          for real.
+        </p>
+      )}
 
       <form action={action} className="mt-7 space-y-4">
         {invite ? <input type="hidden" name="invite" value={invite} /> : null}

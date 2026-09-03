@@ -1,4 +1,4 @@
-import { requireTrip } from "@/lib/access";
+import { requirePaidFeature, requireTrip } from "@/lib/access";
 import {
   DEFAULT_PACKET_SECTIONS,
   loadTripPacket,
@@ -20,7 +20,8 @@ export default async function TripPacketPrintPage({
 }) {
   const { tripId } = await params;
   const { sections: raw } = await searchParams;
-  await requireTrip(tripId);
+  const ctx = await requireTrip(tripId);
+  requirePaidFeature(ctx, "trip-packet", `/orgs/${ctx.organization.slug}/trips/${tripId}`);
 
   const valid = new Set(PACKET_SECTIONS.map((s) => s.key as string));
   const requested = raw

@@ -30,6 +30,10 @@ Open the app service → **Variables**:
 | --- | --- | --- |
 | `DATABASE_URL` | **yes** | `${{Postgres.DATABASE_URL}}` — type it exactly; it is a reference, not a literal |
 | `APP_URL` | no | Your public URL, e.g. `https://your-app.up.railway.app`. Leave unset and the app uses Railway's `RAILWAY_PUBLIC_DOMAIN`; set it explicitly once you add a custom domain, because waiver links are built from it. |
+| `MARKETING_HOST` | once you have domains | `readysetamen.com` — leave unset and one host serves everything |
+| `APP_HOST` | with the above | `app.readysetamen.com` |
+| `STRIPE_SECRET_KEY` | to sell anything | See [docs/PRICING-AND-DOMAINS.md](./PRICING-AND-DOMAINS.md) |
+| `STRIPE_WEBHOOK_SECRET` | to grant access | The signing secret for your webhook endpoint |
 | `RESEND_API_KEY` | recommended | Transactional email. Waivers and invitations work fine without it via Copy Link — but **self-service password reset needs it to deliver**. Without email, an owner issues reset links from organization settings instead. |
 | `MAIL_FROM` | with the above | e.g. `Ready Set Amen <trips@yourchurch.org>` |
 
@@ -77,6 +81,17 @@ Optionally set `APP_URL` to your final domain (especially if you add a custom
 domain later, since signing links must point at the domain parents will open).
 
 ---
+
+## Domains and payment
+
+Point `@`, `www` and `app` at this one service, then set `MARKETING_HOST` and
+`APP_HOST`. Stripe needs a webhook at `https://app.readysetamen.com/api/stripe/webhook`
+for `checkout.session.completed`. Both are covered in
+**[docs/PRICING-AND-DOMAINS.md](./PRICING-AND-DOMAINS.md)**.
+
+Neither is required to deploy: without the host variables one domain serves
+both the marketing page and the app, and without the Stripe keys the app runs
+normally and the unlock page says purchasing is not available yet.
 
 ## The demo organization
 

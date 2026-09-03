@@ -5,6 +5,7 @@ import { formatDateRange } from "@/lib/format";
 import { Badge, Card, EmptyState, LinkButton } from "@/components/ui";
 import { LogoLockup } from "@/components/brand";
 import { OrgMenu } from "@/components/org-menu";
+import { FreeSetupBadge } from "@/components/free-setup-badge";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,13 @@ export default async function OrgTripsPage({ params }: { params: Promise<{ slug:
               {ctx.organization.name}
             </p>
             <h1 className="font-display text-3xl font-extrabold text-navy">Trips</h1>
+            <div className="mt-2">
+              <FreeSetupBadge
+                entitlement={ctx.organization.entitlement}
+                slug={slug}
+                returnTo={`/orgs/${slug}`}
+              />
+            </div>
           </div>
           <LinkButton href={`/orgs/${slug}/trips/new`}>New trip</LinkButton>
         </div>

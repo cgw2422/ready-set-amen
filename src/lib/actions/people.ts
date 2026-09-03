@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAttendee, requireTrip } from "@/lib/access";
+import { requireAttendee, requireTrip, requireAttendeeCapacity } from "@/lib/access";
 import { parseDateInput } from "@/lib/format";
 import { syncWaiverRecipients } from "@/lib/waiver-service";
 import type { FormState } from "@/lib/actions/auth";
@@ -128,6 +128,7 @@ export async function createAttendeeAction(
   formData: FormData,
 ): Promise<FormState> {
   const ctx = await requireTrip(tripId);
+  await requireAttendeeCapacity(ctx, 1, `/orgs/${ctx.organization.slug}/trips/${tripId}/people`);
   const parsed = readAttendeeForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
@@ -211,6 +212,11 @@ export async function quickAddAttendeesAction(
 
   if (lines.length === 0) return { error: "Add at least one name." };
   if (lines.length > 300) return { error: "Add up to 300 people at a time." };
+  await requireAttendeeCapacity(
+    ctx,
+    lines.length,
+    `/orgs/${ctx.organization.slug}/trips/${tripId}/people`,
+  );
 
   const trip = await prisma.trip.findUniqueOrThrow({
     where: { id: tripId },

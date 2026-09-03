@@ -201,6 +201,10 @@ export async function seedDemoOrganization(options: {
       city: "Columbus",
       state: "OH",
       isDemo: true,
+      // The showcase has paid functionality without a Stripe purchase behind it.
+      // DEMO rather than a faked LIFETIME row: nothing should ever be able to
+      // read this as revenue, and no Purchase record is invented.
+      entitlement: "DEMO",
       waiverTermsAcceptedAt: new Date(),
       waiverTermsAcceptedBy: owner.id,
       waiverTermsText: WAIVER_TERMS_TEXT,

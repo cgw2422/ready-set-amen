@@ -119,6 +119,10 @@ async function main() {
       slug,
       city: "Franklin",
       state: "TN",
+      // Local development data, not a customer: granted so the seeded trip
+      // exercises the whole product, and recorded as a grant rather than a
+      // fabricated purchase.
+      entitlement: "MANUAL_LIFETIME",
       // The demo church has already acknowledged the waiver responsibility
       // notice, so the seeded trip has a working waiver to click through.
       waiverTermsAcceptedAt: new Date(),

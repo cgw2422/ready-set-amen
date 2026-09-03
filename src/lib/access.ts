@@ -1,8 +1,15 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import type { OrgRole } from "@prisma/client";
+import type { Entitlement, OrgRole } from "@prisma/client";
+import {
+  FREE_SETUP_ATTENDEE_LIMIT,
+  allows,
+  isPaid,
+  unlockPath,
+  type PaidFeature,
+} from "@/lib/entitlement";
 
 /**
  * Every authenticated read and write in the app goes through one of these.
@@ -15,7 +22,9 @@ import type { OrgRole } from "@prisma/client";
 
 export type OrgContext = {
   userId: string;
-  organization: { id: string; name: string; slug: string };
+  /** Entitlement travels with the resolved organization so a gate can never be
+      answered from an id the caller supplied. */
+  organization: { id: string; name: string; slug: string; entitlement: Entitlement };
   role: OrgRole;
 };
 
@@ -23,7 +32,7 @@ export const requireOrg = cache(async (slug: string): Promise<OrgContext> => {
   const user = await requireUser();
   const membership = await prisma.organizationMember.findFirst({
     where: { userId: user.id, organization: { slug } },
-    include: { organization: { select: { id: true, name: true, slug: true } } },
+    include: { organization: { select: { id: true, name: true, slug: true, entitlement: true } } },
   });
   if (!membership) notFound();
   return {
@@ -37,7 +46,7 @@ export const requireOrgById = cache(async (organizationId: string): Promise<OrgC
   const user = await requireUser();
   const membership = await prisma.organizationMember.findFirst({
     where: { userId: user.id, organizationId },
-    include: { organization: { select: { id: true, name: true, slug: true } } },
+    include: { organization: { select: { id: true, name: true, slug: true, entitlement: true } } },
   });
   if (!membership) notFound();
   return {
@@ -69,6 +78,7 @@ export const requireTrip = cache(async (tripId: string): Promise<TripContext> =>
           id: true,
           name: true,
           slug: true,
+          entitlement: true,
           members: { where: { userId: user.id }, select: { role: true } },
         },
       },
@@ -81,6 +91,7 @@ export const requireTrip = cache(async (tripId: string): Promise<TripContext> =>
       id: trip.organization.id,
       name: trip.organization.name,
       slug: trip.organization.slug,
+      entitlement: trip.organization.entitlement,
     },
     role: trip.organization.members[0]?.role ?? "LEADER",
     trip: { id: trip.id, name: trip.name, organizationId: trip.organizationId },
@@ -118,4 +129,38 @@ export async function requireOrgOwner(slug: string): Promise<OrgContext> {
   const ctx = await requireOrg(slug);
   if (!isOwner(ctx.role)) notFound();
   return ctx;
+}
+
+/**
+ * The one gate for paid features. It redirects rather than returning a flag so
+ * a caller cannot forget to check the answer, and it runs before any work, so
+ * declining to pay never costs a leader the data they had already entered.
+ */
+export function requirePaidFeature(
+  ctx: OrgContext,
+  feature: PaidFeature,
+  returnTo?: string,
+): void {
+  if (allows(ctx.organization.entitlement, feature)) return;
+  redirect(unlockPath(ctx.organization.slug, feature, returnTo));
+}
+
+/**
+ * Free setup covers a real but small group, so a leader can see the dashboard
+ * fill in before paying. Counted across the organization rather than per trip:
+ * the limit is "try it with your first handful of people", not "ten per trip
+ * you remember to create".
+ */
+export async function requireAttendeeCapacity(
+  ctx: OrgContext,
+  adding: number,
+  returnTo?: string,
+): Promise<void> {
+  if (isPaid(ctx.organization.entitlement)) return;
+  const existing = await prisma.attendee.count({
+    where: { trip: { organizationId: ctx.organization.id } },
+  });
+  if (existing + adding > FREE_SETUP_ATTENDEE_LIMIT) {
+    redirect(unlockPath(ctx.organization.slug, "attendees-beyond-free-limit", returnTo));
+  }
 }

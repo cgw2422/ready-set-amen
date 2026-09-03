@@ -686,8 +686,59 @@ set from those attendees first, and `tests/demo.test.ts` asserts it.
 
 ---
 
+## 11b. Marketing site, entitlements and payment
+
+**One deployment, two hostnames.** The public site and the application are the
+same Next.js build; `src/middleware.ts` decides which host owns which path. Two
+Railway services from one repo would mean two builds of shared code, two sets of
+variables, and a monthly bill for a landing page. With `MARKETING_HOST` or
+`APP_HOST` unset the split is off entirely and one host serves everything, which
+is how the tests and local development run.
+
+**Access belongs to the organization, not the user.** `Organization.entitlement`
+is one of FREE_SETUP, LIFETIME, MANUAL_LIFETIME or DEMO. An owner buys once and
+every leader they invite is covered; there is no per-seat anything, and no
+subscription tables, because there is no recurring charge to model.
+
+**Free setup is the product, not a demo.** A church signs up and builds a real
+trip on the real database. The gate sits on five actions that mean the trip is
+actually happening — the eleventh attendee, waiver signing links, leader
+invitations, headcounts, the trip packet — and never on reading. Nothing is
+deleted or locked for not paying, and declining costs a leader nothing they had
+entered, because `requirePaidFeature` redirects before any work is done rather
+than failing partway through it.
+
+The gate is a redirect rather than a boolean on purpose: a caller cannot forget
+to check a redirect. It lives in `src/lib/access.ts` beside the tenancy checks,
+so an action that resolves its organization has already resolved its
+entitlement — a gate can never be answered from an id the caller supplied.
+
+**Only a signed webhook grants access.** The return from Checkout proves
+nothing; anyone can open the success URL. `POST /api/stripe/webhook` verifies
+Stripe's signature over the raw bytes, requires `payment_status: paid`, and
+takes the organization from metadata written server-side when the session was
+created. Stripe redelivers events, so the write is idempotent through a unique
+constraint on the checkout session id — a replay records nothing.
+
+The price is server-side in `src/lib/pricing.ts` and read from there by the
+marketing page, the unlock screen and the Stripe session alike, so no browser
+input can change what a church is charged and no two surfaces can disagree about
+the number.
+
+Manual grants exist for pilot churches and support cases, as a CLI rather than
+an admin panel, and are recorded as MANUAL_GRANT with a reason so nothing ever
+reads a gift as revenue.
+
+---
+
 ## 12. Non-goals restated
 
 No native apps. No AI. No SMS. No chat. No social graph. No church membership
-database. No giving. No parent accounts. No payment processing. No arbitrary
-PDF editing. No AI-generated legal language, ever.
+database. No giving. No parent accounts. No arbitrary PDF editing. No
+AI-generated legal language, ever. No subscriptions, no billing portal, no
+admin panel, and no permissions matrix.
+
+Payment processing here means one thing only: a church buying Ready Set Amen
+once, through Stripe's hosted Checkout. Ready Set Amen still does not collect
+attendees' trip payments — it tracks what people owe, and money changes hands
+the way the church already does it.

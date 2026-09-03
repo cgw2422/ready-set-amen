@@ -8,6 +8,7 @@
  *
  *   node tests/accounts-e2e.mjs
  */
+import { execSync } from "node:child_process";
 import { chromium } from "playwright";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3100";
@@ -88,6 +89,27 @@ check(
   "the notice does not come back after acknowledgement",
   !(await church.textContent("main")).includes("Before your first waiver"),
 );
+
+// ---------------------------------------------------------------------------
+log("Inviting leaders needs lifetime access");
+
+await church.goto(`${BASE}/orgs/${orgSlug}/settings`);
+await church.waitForSelector("text=Invite a leader", { timeout: 30000 });
+await church.fill('input[name="email"]', `blocked${stamp}@accounts.test`);
+await church.click('button:has-text("Send invitation")');
+await church.waitForURL(/\/unlock/, { timeout: 30000 });
+check(
+  "a church still in free setup is sent to unlock instead of inviting",
+  /feature=leader-invitations/.test(church.url()),
+);
+check(
+  "and nothing was sent",
+  !(await church.textContent("main")).includes(`blocked${stamp}@accounts.test`),
+);
+
+// Grant it through the same CLI a pilot church would get, which is also the
+// only way access is ever handed out without a payment.
+execSync(`npm run grant -- ${orgSlug} "accounts e2e"`, { stdio: "pipe" });
 
 // ---------------------------------------------------------------------------
 log("The owner invites a leader");

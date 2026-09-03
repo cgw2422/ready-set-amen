@@ -334,6 +334,66 @@ const fontSize = await signer.evaluate(() => {
 });
 check("inputs are >=16px so iOS Safari does not zoom on focus", fontSize >= 16, `${fontSize}px`);
 
+// --- Public marketing page --------------------------------------------------
+// It is the first thing anyone sees and needs no account, so it is held to the
+// same bar as the signing page: contrast, target size, a real heading, and no
+// sideways scroll at 200% text.
+console.log("\nPublic marketing page");
+const visitorCtx = await browser.newContext({
+  viewport: { width: 390, height: 844 },
+  hasTouch: true,
+  isMobile: true,
+  ignoreHTTPSErrors: true,
+});
+const visitor = await visitorCtx.newPage();
+await visitor.goto(BASE);
+await visitor.waitForLoadState("networkidle");
+
+const marketing = await visitor.evaluate(`(${AUDIT})()`);
+check("marketing page does not scroll sideways", marketing.overflow <= 1, `${marketing.overflow}px`);
+check("marketing targets are big enough", marketing.small.length === 0, JSON.stringify(marketing.small.slice(0, 3)));
+check("marketing text meets contrast", marketing.lowContrast.length === 0, JSON.stringify(marketing.lowContrast.slice(0, 3)));
+
+const headings = await visitor.evaluate(() => ({
+  h1: [...document.querySelectorAll("h1")].map((h) => h.textContent.trim()),
+  order: [...document.querySelectorAll("h1,h2,h3")].map((h) => Number(h.tagName[1])),
+}));
+check("exactly one h1", headings.h1.length === 1, headings.h1.join(" | "));
+check(
+  "heading levels never skip",
+  headings.order.every((level, i) => i === 0 || level - headings.order[i - 1] <= 1),
+  headings.order.join(","),
+);
+
+// The FAQ is a native disclosure, so it must work with the keyboard alone.
+await visitor.goto(`${BASE}/#faq`);
+await visitor.waitForLoadState("networkidle");
+const faqOpened = await visitor.evaluate(() => {
+  const summary = document.querySelector("details summary");
+  if (!summary) return false;
+  summary.click();
+  return summary.parentElement.hasAttribute("open");
+});
+check("FAQ answers open without JavaScript of our own", faqOpened);
+
+const bigVisitor = await visitorCtx.newPage();
+await bigVisitor.addInitScript(() => {
+  document.addEventListener("DOMContentLoaded", () => {
+    document.documentElement.style.fontSize = "32px";
+  });
+});
+await bigVisitor.goto(BASE);
+await bigVisitor.waitForLoadState("networkidle");
+const bigOverflow = await bigVisitor.evaluate(
+  () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+);
+const bigCulprits = await bigVisitor.evaluate(`(${AUDIT})()`);
+check(
+  "marketing page at 200% text",
+  bigOverflow <= 1,
+  bigOverflow > 1 ? `${bigOverflow}px — ${JSON.stringify(bigCulprits.wideCulprits.slice(0, 3))}` : "",
+);
+
 await browser.close();
 console.log(failures === 0 ? "\nAccessibility audit passed." : `\n${failures} issue(s) found.`);
 process.exit(failures === 0 ? 0 : 1);
