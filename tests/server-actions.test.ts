@@ -59,3 +59,42 @@ test("there are server action modules to check in the first place", () => {
   // Guards the detector itself: a broken regex would silently pass the test above.
   assert.ok(serverActionModules().length >= 5);
 });
+
+/**
+ * A React event object is emptied as soon as its handler returns, so reading
+ * `event.currentTarget` from inside a `setState` updater — which runs later —
+ * throws "Cannot read properties of null". In a client component that is an
+ * uncaught exception, which means the error page. It happened three times in
+ * the waiver builder: the drawn-signature checkbox and both header fields.
+ *
+ * Reading the value into a variable first is the fix, and this keeps it fixed.
+ */
+test("no event target is read inside a state updater", () => {
+  const updater = /set[A-Z]\w*\(\s*\([^)]*\)\s*=>/g;
+  const offenders: string[] = [];
+
+  for (const path of sourceFiles("src").filter((p) => p.endsWith(".tsx"))) {
+    const source = readFileSync(path, "utf8");
+    for (const match of source.matchAll(updater)) {
+      // Walk to the closing paren of the updater call to get just its body.
+      let depth = 1;
+      let index = match.index + match[0].length;
+      while (index < source.length && depth > 0) {
+        const char = source[index];
+        if (char === "(" || char === "[" || char === "{") depth += 1;
+        else if (char === ")" || char === "]" || char === "}") depth -= 1;
+        index += 1;
+      }
+      const body = source.slice(match.index + match[0].length, index);
+      if (body.includes("currentTarget")) {
+        offenders.push(`${path}:${source.slice(0, match.index).split("\n").length}`);
+      }
+    }
+  }
+
+  assert.deepEqual(
+    offenders,
+    [],
+    `read the value before calling setState — the event is empty by the time an updater runs:\n${offenders.join("\n")}`,
+  );
+});

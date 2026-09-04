@@ -3,8 +3,9 @@
 import { useActionState } from "react";
 import { updateTripAction } from "@/lib/actions/trips";
 import type { FormState } from "@/lib/actions/auth";
-import { Alert, Card, Field, Input, Select, Textarea } from "@/components/ui";
+import { Card, Field, Input, Select, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
+import { SaveError, SaveStatus } from "@/components/save-status";
 
 const initial: FormState = {};
 
@@ -25,33 +26,42 @@ export function TripSettingsForm({
 }) {
   const [state, action] = useActionState(updateTripAction.bind(null, tripId), initial);
 
+  // After a rejected save the action hands back what was typed; React would
+  // otherwise reset every uncontrolled field to the values the trip had.
+  const field = (key: string) => state.submitted?.[key] ?? values[key];
+
+  // React applies defaultValue on mount and resets an uncontrolled form once
+  // an action settles, so the echoed values only appear if the form remounts.
+  // Keying on the values themselves means every distinct rejection restores
+  // what was actually typed that time.
+  const formKey = state.submitted ? JSON.stringify(state.submitted) : "saved";
+
   return (
-    <form action={action} className="space-y-4">
-      {state.error ? <Alert tone="error">{state.error}</Alert> : null}
-      {state.ok ? <Alert tone="success">Saved.</Alert> : null}
+    <form action={action} key={formKey} className="space-y-4">
+      <SaveStatus state={state} savedMessage="Saved. Your trip settings are up to date." />
 
       <Card className="p-4">
         <p className="mb-3 font-display text-base font-bold text-navy">The basics</p>
         <div className="space-y-3">
           <Field label="Trip name" required>
-            <Input name="name" required defaultValue={values.name} />
+            <Input name="name" required defaultValue={field("name")} />
           </Field>
           <Field label="Destination">
-            <Input name="destination" defaultValue={values.destination} />
+            <Input name="destination" defaultValue={field("destination")} />
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Departure date">
-              <Input name="startDate" type="date" defaultValue={values.startDate} />
+              <Input name="startDate" type="date" defaultValue={field("startDate")} />
             </Field>
             <Field label="Return date">
-              <Input name="endDate" type="date" defaultValue={values.endDate} />
+              <Input name="endDate" type="date" defaultValue={field("endDate")} />
             </Field>
           </div>
           <Field label="Departure location">
-            <Input name="departureLocation" defaultValue={values.departureLocation} />
+            <Input name="departureLocation" defaultValue={field("departureLocation")} />
           </Field>
           <Field label="Status">
-            <Select name="status" defaultValue={values.status}>
+            <Select name="status" defaultValue={field("status")}>
               {STATUSES.map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
@@ -60,7 +70,7 @@ export function TripSettingsForm({
             </Select>
           </Field>
           <Field label="Description">
-            <Textarea name="description" rows={3} defaultValue={values.description} />
+            <Textarea name="description" rows={3} defaultValue={field("description")} />
           </Field>
         </div>
       </Card>
@@ -69,19 +79,19 @@ export function TripSettingsForm({
         <p className="mb-3 font-display text-base font-bold text-navy">Money</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Cost per person">
-            <Input name="costPerPerson" inputMode="decimal" defaultValue={values.costPerPerson} />
+            <Input name="costPerPerson" inputMode="decimal" defaultValue={field("costPerPerson")} />
           </Field>
           <Field label="Deposit amount">
-            <Input name="depositAmount" inputMode="decimal" defaultValue={values.depositAmount} />
+            <Input name="depositAmount" inputMode="decimal" defaultValue={field("depositAmount")} />
           </Field>
           <Field label="Deposit due">
-            <Input name="depositDueDate" type="date" defaultValue={values.depositDueDate} />
+            <Input name="depositDueDate" type="date" defaultValue={field("depositDueDate")} />
           </Field>
           <Field label="Final payment due">
             <Input
               name="finalPaymentDueDate"
               type="date"
-              defaultValue={values.finalPaymentDueDate}
+              defaultValue={field("finalPaymentDueDate")}
             />
           </Field>
         </div>
@@ -90,9 +100,12 @@ export function TripSettingsForm({
         </p>
       </Card>
 
-      <SubmitButton size="lg" className="w-full" pendingLabel="Saving…">
-        Save trip settings
-      </SubmitButton>
+      <div>
+        <SubmitButton size="lg" className="w-full" pendingLabel="Saving…">
+          Save trip settings
+        </SubmitButton>
+        <SaveError state={state} />
+      </div>
     </form>
   );
 }

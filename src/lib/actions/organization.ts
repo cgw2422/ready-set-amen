@@ -28,7 +28,15 @@ export async function updateOrganizationAction(
     state: formData.get("state") ?? undefined,
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
+    // Echoed so a rejected save keeps what the owner typed.
+    return {
+      error: parsed.error.issues[0]?.message ?? "Please check the form.",
+      submitted: {
+        name: String(formData.get("name") ?? ""),
+        city: String(formData.get("city") ?? ""),
+        state: String(formData.get("state") ?? ""),
+      },
+    };
   }
 
   await prisma.organization.update({

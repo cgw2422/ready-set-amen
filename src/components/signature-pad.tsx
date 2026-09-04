@@ -22,21 +22,52 @@ export function SignaturePad({
   const last = useRef<{ x: number; y: number } | null>(null);
   const [value, setValue] = useState("");
 
+  /**
+   * Size the bitmap to the box it is actually drawn in.
+   *
+   * This has to be observed rather than measured once: the signing form keeps
+   * its later steps in a `display: none` container, so on mount the canvas
+   * measures 0×0. A zero-sized canvas silently swallows every stroke and hands
+   * back "data:," instead of an image — the pad looks fine and simply does
+   * nothing. The observer fires when the step is revealed and again on a
+   * rotation, which is the moment there is finally a real size to use.
+   */
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ratio = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * ratio;
-    canvas.height = rect.height * ratio;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.scale(ratio, ratio);
-    ctx.lineWidth = 2.4;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "#0E2239";
-  }, []);
+
+    const configure = () => {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+
+      const ratio = window.devicePixelRatio || 1;
+      const width = Math.round(rect.width * ratio);
+      const height = Math.round(rect.height * ratio);
+      if (canvas.width === width && canvas.height === height) return;
+
+      // Changing the bitmap size clears it, so anything already drawn is gone
+      // and must not stay recorded as a signature.
+      canvas.width = width;
+      canvas.height = height;
+      setValue((current) => {
+        if (current) onChange?.(null);
+        return "";
+      });
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.scale(ratio, ratio);
+      ctx.lineWidth = 2.4;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#0E2239";
+    };
+
+    configure();
+    const observer = new ResizeObserver(configure);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [onChange]);
 
   const point = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();

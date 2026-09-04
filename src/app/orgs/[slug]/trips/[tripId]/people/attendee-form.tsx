@@ -3,8 +3,9 @@
 import { useActionState, useState } from "react";
 import { createAttendeeAction, updateAttendeeAction } from "@/lib/actions/people";
 import type { AttendeeFormState } from "@/lib/actions/people";
-import { Alert, Card, Checkbox, Field, Input, Select, Textarea } from "@/components/ui";
+import { Card, Checkbox, Field, Input, Select, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
+import { SaveError, SaveStatus } from "@/components/save-status";
 
 export type AttendeeFormValues = {
   id?: string;
@@ -97,8 +98,17 @@ export function AttendeeForm({
   
 
   return (
-    <form action={action} className="space-y-4" key={restored ? "restored" : "fresh"}>
-      {state.error ? <Alert tone="error">{state.error}</Alert> : null}
+    <form
+      action={action}
+      className="space-y-4"
+      // Keyed on the returned values rather than on "did it fail", so a second
+      // rejection restores what was typed the second time.
+      key={restored ? JSON.stringify(restored) : "fresh"}
+    >
+      <SaveStatus
+        state={state}
+        savedMessage={`Saved. ${text("firstName") || "This person"}'s details are up to date.`}
+      />
 
       <Card className="p-4">
         <p className="mb-3 font-display text-base font-bold text-navy">Who is this?</p>
@@ -248,7 +258,9 @@ export function AttendeeForm({
         </Field>
       </Card>
 
-      <div className="sticky bottom-20 z-10 flex gap-3 lg:bottom-4">
+      <div className="sticky bottom-20 z-10 lg:bottom-4">
+        <SaveError state={state} />
+        <div className="flex gap-3">
         <SubmitButton size="lg" className="flex-1 shadow-lg" pendingLabel="Saving…">
           {mode === "create" ? "Add attendee" : "Save changes"}
         </SubmitButton>
@@ -264,6 +276,7 @@ export function AttendeeForm({
             Save &amp; add another
           </SubmitButton>
         ) : null}
+        </div>
       </div>
     </form>
   );

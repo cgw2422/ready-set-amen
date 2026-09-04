@@ -9,7 +9,12 @@ import { clientIp, userAgent } from "@/lib/request";
 import { LIMITS, rateLimit, rateLimitPeek } from "@/lib/rate-limit";
 import { slugify } from "@/lib/format";
 
-export type FormState = { error?: string; ok?: boolean };
+/**
+ * `submitted` echoes back what the user typed on a failure. React 19 resets an
+ * uncontrolled form once its action settles, so without this a rejected save
+ * silently wipes everything the leader had entered.
+ */
+export type FormState = { error?: string; ok?: boolean; submitted?: Record<string, string> };
 
 const signupSchema = z.object({
   firstName: z.string().trim().min(1, "First name is required").max(80),

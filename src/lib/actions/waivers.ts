@@ -93,35 +93,43 @@ export async function saveWaiverVersionAction(
   }
 
   const hash = hashDocument(content);
-  const latest = await prisma.waiverTemplateVersion.findFirst({
-    where: { templateId },
-    orderBy: { versionNumber: "desc" },
-    select: { versionNumber: true, contentHash: true },
+  const name = String(formData.get("name") ?? "").trim();
+
+  /**
+   * One lock per template, so the next version number is read and used without
+   * anyone else slipping in between. Two people saving the same template at the
+   * same moment would otherwise both compute the same number and one would hit
+   * the unique constraint — an error page for a save that should have worked.
+   *
+   * Under the lock, a save whose content is byte-identical to the newest
+   * version is a no-op: a double tap cannot produce version 5 and version 6
+   * with the same words in them.
+   */
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${templateId}))`;
+
+    const latest = await tx.waiverTemplateVersion.findFirst({
+      where: { templateId },
+      orderBy: { versionNumber: "desc" },
+      select: { versionNumber: true, contentHash: true },
+    });
+
+    if (latest?.contentHash !== hash) {
+      await tx.waiverTemplateVersion.create({
+        data: {
+          templateId,
+          versionNumber: (latest?.versionNumber ?? 0) + 1,
+          content,
+          contentHash: hash,
+          createdBy: ctx.userId,
+        },
+      });
+    }
+
+    if (name) {
+      await tx.waiverTemplate.update({ where: { id: templateId }, data: { name } });
+    }
   });
-
-  if (latest?.contentHash === hash) {
-    // Nothing actually changed — don't create a version for a no-op save.
-    const name = String(formData.get("name") ?? "").trim();
-    if (name) await prisma.waiverTemplate.update({ where: { id: templateId }, data: { name } });
-    revalidatePath(`/orgs/${ctx.organization.slug}/waivers/${templateId}`);
-    return { ok: true };
-  }
-
-  await prisma.$transaction([
-    prisma.waiverTemplateVersion.create({
-      data: {
-        templateId,
-        versionNumber: (latest?.versionNumber ?? 0) + 1,
-        content,
-        contentHash: hash,
-        createdBy: ctx.userId,
-      },
-    }),
-    prisma.waiverTemplate.update({
-      where: { id: templateId },
-      data: { name: String(formData.get("name") ?? "").trim() || undefined },
-    }),
-  ]);
 
   revalidatePath(`/orgs/${ctx.organization.slug}/waivers/${templateId}`);
   return { ok: true };

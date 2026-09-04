@@ -40,6 +40,30 @@ function parseMoney(value: FormDataEntryValue | null): number | null {
   return Number.isFinite(cleaned) ? cleaned : null;
 }
 
+/** The inputs the trip forms post, in the order they render them. */
+const TRIP_SETTINGS_FIELDS = [
+  "name",
+  "destination",
+  "description",
+  "startDate",
+  "endDate",
+  "departureLocation",
+  "costPerPerson",
+  "depositAmount",
+  "depositDueDate",
+  "finalPaymentDueDate",
+  "status",
+] as const;
+
+/**
+ * What the leader typed, echoed back on a rejection. React 19 resets an
+ * uncontrolled form once its action settles, so without this a refused save
+ * silently empties every field.
+ */
+function echo(formData: FormData, keys: readonly string[]): Record<string, string> {
+  return Object.fromEntries(keys.map((key) => [key, String(formData.get(key) ?? "")]));
+}
+
 export async function createTripAction(
   orgSlug: string,
   _prev: FormState,
@@ -57,14 +81,14 @@ export async function createTripAction(
     depositAmount: parseMoney(formData.get("depositAmount")),
   });
 
+  const submitted = echo(formData, TRIP_SETTINGS_FIELDS);
+
   if (!parsed.success) {
-    return {
-      error: parsed.error.issues[0]?.message ?? "Please check the form.",
-    };
+    return { error: parsed.error.issues[0]?.message ?? "Please check the form.", submitted };
   }
   const data = parsed.data;
   if (data.startDate && data.endDate && data.endDate < data.startDate) {
-    return { error: "The return date can't be before the departure date." };
+    return { error: "The return date can't be before the departure date.", submitted };
   }
 
   // Free setup includes one trip. The count and the insert happen under one
@@ -143,14 +167,14 @@ export async function updateTripAction(
     status: formData.get("status") ?? "PLANNING",
   });
 
+  const submitted = echo(formData, TRIP_SETTINGS_FIELDS);
+
   if (!parsed.success) {
-    return {
-      error: parsed.error.issues[0]?.message ?? "Please check the form.",
-    };
+    return { error: parsed.error.issues[0]?.message ?? "Please check the form.", submitted };
   }
   const data = parsed.data;
   if (data.startDate && data.endDate && data.endDate < data.startDate) {
-    return { error: "The return date can't be before the departure date." };
+    return { error: "The return date can't be before the departure date.", submitted };
   }
 
   await prisma.trip.update({

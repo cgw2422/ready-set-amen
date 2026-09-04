@@ -172,6 +172,8 @@ node tests/accessibility.mjs                  # targets, contrast, keyboard, 200
 node tests/accounts-e2e.mjs                   # reset + invitations in the browser (dev server)
 node tests/free-setup.mjs                     # the free-to-paid boundary, attacked directly
 node tests/admin-e2e.mjs                      # platform authorization, attacked directly
+node tests/save-ux.mjs                        # save confirmations and double taps at 390px
+node tests/drawn-signature.mjs                # the drawn-signature requirement, end to end
 ```
 
 The browser suites need a running server; point them with `E2E_BASE_URL`.

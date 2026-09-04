@@ -568,3 +568,167 @@ test("two simultaneous submissions produce exactly one signature", async () => {
   assert.equal(succeeded, 1, "a double tap on a slow phone must not sign twice");
   assert.equal(await db.signedWaiver.count({ where: { attendeeId: attendee.id } }), 1);
 });
+
+// ---------------------------------------------------------------------------
+// A drawn signature is part of the versioned document, not a template setting.
+// It is stored inside `content`, so it is covered by the version's content hash
+// and by the snapshot written onto every signature — which is what makes the
+// requirement survive a later edit to the template.
+// ---------------------------------------------------------------------------
+
+/** A tiny but real PNG data URI, the shape the signature pad produces. */
+const DRAWING =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+/** A second template whose version 1 demands a drawing. */
+async function templateRequiringDrawing() {
+  const content = contentWithText("You must draw your signature for this one.");
+  content.requireDrawnSignature = true;
+  const template = await db.waiverTemplate.create({
+    data: {
+      organizationId,
+      name: `Drawn ${Date.now()}`,
+      versions: { create: { versionNumber: 1, content, contentHash: hashDocument(content) } },
+    },
+    include: { versions: true },
+  });
+  const version = template.versions[0]!;
+  const requirement = await db.tripWaiverRequirement.create({
+    data: { tripId, versionId: version.id, title: "Drawn signature waiver" },
+  });
+  await syncWaiverRecipients(tripId);
+  return { template, version, requirement };
+}
+
+test("the drawn-signature requirement is covered by the version's content hash", async () => {
+  const off = emptyContent("Grace Community Church", "Release");
+  const on = { ...off, requireDrawnSignature: true };
+  assert.equal(off.requireDrawnSignature, false, "off by default");
+  assert.notEqual(
+    hashDocument(off),
+    hashDocument(on),
+    "turning the setting on must change the document hash",
+  );
+});
+
+test("when a version requires a drawing, signing without one is refused", async () => {
+  const { requirement } = await templateRequiringDrawing();
+  const attendee = await db.attendee.create({
+    data: { tripId, firstName: "Needs", lastName: "Drawing", isMinor: false },
+  });
+  await syncWaiverRecipients(tripId);
+  const recipient = await db.waiverRecipient.findFirstOrThrow({
+    where: { requirementId: requirement.id, attendeeId: attendee.id },
+  });
+
+  const first = tokenFrom(await issueSigningLink(recipient.id));
+  const refused = await recordSignature({
+    ...baseSubmission(first),
+    signerRelationship: "Self",
+    drawnSignature: null,
+  });
+  assert.equal(refused.ok, false, "a missing drawing is refused");
+  assert.equal(await db.signedWaiver.count({ where: { attendeeId: attendee.id } }), 0);
+
+  // The typed name and the consent are still required alongside the drawing.
+  const noTyped = tokenFrom(await issueSigningLink(recipient.id));
+  const b = await recordSignature({
+    ...baseSubmission(noTyped),
+    signerRelationship: "Self",
+    typedSignature: "  ",
+    drawnSignature: DRAWING,
+  });
+  assert.equal(b.ok, false, "a drawing does not replace the typed legal name");
+
+  const noConsent = tokenFrom(await issueSigningLink(recipient.id));
+  const c = await recordSignature({
+    ...baseSubmission(noConsent),
+    signerRelationship: "Self",
+    consentToElectronicRecords: false,
+    drawnSignature: DRAWING,
+  });
+  assert.equal(c.ok, false, "a drawing does not replace electronic consent");
+
+  // With all three, it signs, and the drawing is stored.
+  const good = tokenFrom(await issueSigningLink(recipient.id));
+  const signed = await recordSignature({
+    ...baseSubmission(good),
+    signerRelationship: "Self",
+    drawnSignature: DRAWING,
+  });
+  assert.equal(signed.ok, true);
+
+  const record = await db.signedWaiver.findFirstOrThrow({
+    where: { attendeeId: attendee.id },
+    select: { drawnSignature: true, typedSignature: true, consentToElectronicRecords: true },
+  });
+  assert.equal(record.drawnSignature, DRAWING, "the drawing is kept as evidence");
+  assert.equal(record.typedSignature, "Rosa Mercer", "alongside the typed name, not instead of it");
+  assert.equal(record.consentToElectronicRecords, true);
+});
+
+test("a version that does not require a drawing signs without one", async () => {
+  const attendee = await db.attendee.create({
+    data: { tripId, firstName: "NoDrawing", lastName: "Needed", isMinor: false },
+  });
+  await syncWaiverRecipients(tripId);
+  const recipient = await db.waiverRecipient.findFirstOrThrow({
+    where: { requirementId, attendeeId: attendee.id },
+  });
+  const token = tokenFrom(await issueSigningLink(recipient.id));
+  const signed = await recordSignature({
+    ...baseSubmission(token),
+    signerRelationship: "Self",
+    drawnSignature: null,
+  });
+  assert.equal(signed.ok, true, "the default template never demands a drawing");
+});
+
+test("the requirement stays attached to what was signed, whatever the template becomes", async () => {
+  const { template, version, requirement } = await templateRequiringDrawing();
+  const attendee = await db.attendee.create({
+    data: { tripId, firstName: "Frozen", lastName: "Record", isMinor: false },
+  });
+  await syncWaiverRecipients(tripId);
+  const recipient = await db.waiverRecipient.findFirstOrThrow({
+    where: { requirementId: requirement.id, attendeeId: attendee.id },
+  });
+  const token = tokenFrom(await issueSigningLink(recipient.id));
+  assert.equal(
+    (await recordSignature({ ...baseSubmission(token), signerRelationship: "Self", drawnSignature: DRAWING })).ok,
+    true,
+  );
+
+  // The leader now turns the setting off and saves a new version.
+  const relaxed = contentWithText("You must draw your signature for this one.");
+  relaxed.requireDrawnSignature = false;
+  await db.waiverTemplateVersion.create({
+    data: {
+      templateId: template.id,
+      versionNumber: 2,
+      content: relaxed,
+      contentHash: hashDocument(relaxed),
+    },
+  });
+
+  const record = await db.signedWaiver.findFirstOrThrow({
+    where: { attendeeId: attendee.id },
+    select: { documentSnapshot: true, versionId: true, drawnSignature: true },
+  });
+  const snapshot = record.documentSnapshot as { content: { requireDrawnSignature: boolean } };
+  assert.equal(record.versionId, version.id, "still pinned to the version that was signed");
+  assert.equal(
+    snapshot.content.requireDrawnSignature,
+    true,
+    "the signed record still says a drawing was required",
+  );
+  assert.equal(record.drawnSignature, DRAWING, "and the drawing is still there");
+
+  // Version 1 itself is untouched.
+  const original = await db.waiverTemplateVersion.findUniqueOrThrow({ where: { id: version.id } });
+  assert.equal(
+    (original.content as { requireDrawnSignature: boolean }).requireDrawnSignature,
+    true,
+  );
+  assert.equal(hashDocument(original.content), original.contentHash, "hash still verifies");
+});

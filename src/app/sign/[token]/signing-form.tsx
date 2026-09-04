@@ -40,6 +40,12 @@ export function SigningForm(props: Props) {
   const errorRef = useRef<HTMLDivElement>(null);
   // A control the browser refused to submit on, waiting for its step to be shown.
   const blocked = useRef<HTMLElement | null>(null);
+  // A drawn signature lives in a hidden input, and browsers never validate
+  // those — so when the waiver requires one, this form blocks the submit
+  // itself rather than letting the server bounce it back.
+  const padRef = useRef<HTMLDivElement>(null);
+  const [drawn, setDrawn] = useState<string | null>(null);
+  const [drawingMissing, setDrawingMissing] = useState(false);
 
   // Every hook runs before the success screen returns early below.
   useEffect(() => {
@@ -170,7 +176,18 @@ export function SigningForm(props: Props) {
         ))}
       </ol>
 
-      <form ref={formRef} action={action} className="mt-5 space-y-4">
+      <form
+        ref={formRef}
+        action={action}
+        onSubmit={(event) => {
+          if (props.content.requireDrawnSignature && !drawn) {
+            event.preventDefault();
+            setDrawingMissing(true);
+            padRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+          }
+        }}
+        className="mt-5 space-y-4"
+      >
         <input type="hidden" name="token" value={props.token} />
         {state.error ? (
           <div ref={errorRef} tabIndex={-1} className="scroll-mt-6 outline-none">
@@ -379,7 +396,7 @@ export function SigningForm(props: Props) {
               />
             </Field>
 
-            <div className="mt-4">
+            <div className="mt-4 scroll-mt-6" ref={padRef}>
               <p className="mb-1.5 text-sm font-semibold text-navy">
                 Draw your signature
                 {props.content.requireDrawnSignature ? (
@@ -388,7 +405,19 @@ export function SigningForm(props: Props) {
                   </span>
                 ) : null}
               </p>
-              <SignaturePad name="drawnSignature" required={props.content.requireDrawnSignature} />
+              <SignaturePad
+                name="drawnSignature"
+                required={props.content.requireDrawnSignature}
+                onChange={(value) => {
+                  setDrawn(value);
+                  if (value) setDrawingMissing(false);
+                }}
+              />
+              {drawingMissing ? (
+                <p role="alert" className="mt-2 text-sm font-semibold text-coral-deep">
+                  Please draw your signature above to continue.
+                </p>
+              ) : null}
             </div>
 
             <label className="mt-4 flex items-start gap-3 rounded-xl bg-cream p-3">

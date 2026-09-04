@@ -13,6 +13,7 @@ import {
 } from "@/lib/waiver-content";
 import { Alert, Badge, Button, Card, Checkbox, Field, Input, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
+import { SaveError, SaveStatus } from "@/components/save-status";
 import { WaiverText } from "@/components/waiver-text";
 
 const initial: FormState = {};
@@ -77,8 +78,7 @@ export function WaiverBuilder({
       </div>
 
       <div className="mt-4 space-y-4">
-        {state.error ? <Alert tone="error">{state.error}</Alert> : null}
-        {state.ok ? <Alert tone="success">Saved. A new version has been recorded.</Alert> : null}
+        <SaveStatus state={state} savedMessage="Saved. A new version has been recorded." />
         {locked ? (
           <Alert tone="info" title="This waiver already has signatures">
             Editing is safe — existing signatures keep the exact version they were signed against.
@@ -108,6 +108,21 @@ export function WaiverBuilder({
               </p>
             ) : null}
           </div>
+
+          {/* What signing actually asks for, so the drawn-signature setting is
+              visible somewhere other than the checkbox that set it. */}
+          <div className="mt-5 border-t border-line pt-4">
+            <h3 className="font-display text-base font-bold text-navy">The signer provides</h3>
+            <ul className="mt-1 space-y-1 text-sm text-navy">
+              <li>Their typed legal name</li>
+              <li>Agreement to sign electronically</li>
+              {content.requireDrawnSignature ? (
+                <li data-preview="drawn-signature">A drawn signature</li>
+              ) : (
+                <li className="text-navy-faint">A drawn signature (optional)</li>
+              )}
+            </ul>
+          </div>
         </Card>
       ) : (
         <div className="mt-5 space-y-4">
@@ -119,16 +134,23 @@ export function WaiverBuilder({
               <Field label="Title shown to signers" required>
                 <Input
                   value={content.waiverTitle}
-                  onChange={(e) => setContent((c) => ({ ...c, waiverTitle: e.currentTarget.value }))}
+                  onChange={(e) => {
+                    // Read the value here, not inside the updater: React clears
+                    // currentTarget once the handler returns, and an updater runs
+                    // later.
+                    const waiverTitle = e.currentTarget.value;
+                    setContent((c) => ({ ...c, waiverTitle }));
+                  }}
                   required
                 />
               </Field>
               <Field label="Organization name" className="sm:col-span-2" required>
                 <Input
                   value={content.organizationName}
-                  onChange={(e) =>
-                    setContent((c) => ({ ...c, organizationName: e.currentTarget.value }))
-                  }
+                  onChange={(e) => {
+                    const organizationName = e.currentTarget.value;
+                    setContent((c) => ({ ...c, organizationName }));
+                  }}
                   required
                 />
               </Field>
@@ -355,9 +377,10 @@ export function WaiverBuilder({
             <label className="flex items-start gap-3">
               <Checkbox
                 checked={content.requireDrawnSignature}
-                onChange={(e) =>
-                  setContent((c) => ({ ...c, requireDrawnSignature: e.currentTarget.checked }))
-                }
+                onChange={(e) => {
+                  const requireDrawnSignature = e.currentTarget.checked;
+                  setContent((c) => ({ ...c, requireDrawnSignature }));
+                }}
               />
               <span>
                 <span className="block font-semibold text-navy">Require a drawn signature</span>
@@ -375,6 +398,7 @@ export function WaiverBuilder({
         <SubmitButton size="lg" className="w-full shadow-lg" pendingLabel="Saving…">
           Save version {currentVersion + 1}
         </SubmitButton>
+        <SaveError state={state} />
       </div>
     </form>
   );
