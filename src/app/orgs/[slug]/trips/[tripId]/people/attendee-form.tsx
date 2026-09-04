@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { createAttendeeAction, updateAttendeeAction } from "@/lib/actions/people";
 import type { AttendeeFormState } from "@/lib/actions/people";
 import { Card, Checkbox, Field, Input, Select, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { SaveError, SaveStatus } from "@/components/save-status";
+import { useDirtyForm } from "@/components/unsaved-changes";
 
 export type AttendeeFormValues = {
   id?: string;
@@ -95,10 +96,14 @@ export function AttendeeForm({
   // Seeded from whatever the form will actually render, so a failed save keeps
   // the guardian section open if that is what the leader had chosen.
   const [isMinor, setIsMinor] = useState(checked("isMinor"));
+
+  const formRef = useRef<HTMLFormElement>(null);
+  useDirtyForm(formRef, state);
   
 
   return (
     <form
+      ref={formRef}
       action={action}
       className="space-y-4"
       // Keyed on the returned values rather than on "did it fail", so a second

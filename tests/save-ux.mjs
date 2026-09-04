@@ -221,6 +221,61 @@ await page.click('button:has-text("Save trip settings")');
 await page.waitForSelector('[data-save-status="saved"]', { timeout: 30000 });
 
 // ---------------------------------------------------------------------------
+log("Leaving with unsaved work asks first — and only then");
+
+/** Clicks a link and reports whether a confirm dialog appeared, answering it. */
+async function leaveVia(selector, answer) {
+  let asked = false;
+  const handler = async (dialog) => {
+    asked = true;
+    if (answer) await dialog.accept();
+    else await dialog.dismiss();
+  };
+  page.on("dialog", handler);
+  await page.locator(selector).first().click({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(1200);
+  page.off("dialog", handler);
+  return asked;
+}
+
+// A clean form must never nag.
+await page.goto(`${tripUrl}/settings`);
+await page.waitForLoadState("networkidle");
+check("a clean form lets you leave without a word", !(await leaveVia('a[href*="/trips/"]', true)));
+
+// A dirty one asks, and declining keeps you where you were.
+await page.goto(`${tripUrl}/settings`);
+await page.waitForLoadState("networkidle");
+await page.fill('input[name="departureLocation"]', "Church parking lot");
+check("editing then leaving asks first", await leaveVia('a[href*="/trips/"]', false));
+check("declining keeps you on the form", page.url().includes("/settings"));
+check(
+  "with the edit still there",
+  (await page.inputValue('input[name="departureLocation"]')) === "Church parking lot",
+);
+
+// Saving clears it: no prompt afterwards.
+await page.click('button:has-text("Save trip settings")');
+await page.waitForSelector('[data-save-status="saved"]', { timeout: 30000 });
+check("after saving, leaving is silent again", !(await leaveVia('a[href*="/trips/"]', true)));
+
+// The builder guards its legal text the same way.
+await page.goto(`${BASE}${templateHref}`);
+await page.waitForLoadState("networkidle");
+check("a freshly opened waiver builder is quiet", !(await leaveVia('a:has-text("Back to waiver library")', true)));
+
+await page.goto(`${BASE}${templateHref}`);
+await page.waitForLoadState("networkidle");
+const ack = page.locator('label:has-text("Require a drawn signature") input[type="checkbox"]');
+await ack.scrollIntoViewIfNeeded();
+// Whatever it was, this run flips it — the guard is about the change, not the value.
+const flipped = !(await ack.isChecked());
+await ack.click();
+check("changing a waiver option arms the guard", await leaveVia('a:has-text("Back to waiver library")', false));
+check("and declining keeps the builder open", page.url().includes("/waivers/"));
+check("with the change intact", (await ack.isChecked()) === flipped);
+
+// ---------------------------------------------------------------------------
 log("Nothing scrolls sideways and no exception was thrown anywhere");
 
 for (const path of [`${tripUrl}/settings`, `${BASE}${templateHref}`, `${BASE}/orgs/${slug}/settings`]) {

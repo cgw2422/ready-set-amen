@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { updateTripAction } from "@/lib/actions/trips";
 import type { FormState } from "@/lib/actions/auth";
 import { Card, Field, Input, Select, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { SaveError, SaveStatus } from "@/components/save-status";
+import { useDirtyForm } from "@/components/unsaved-changes";
 
 const initial: FormState = {};
 
@@ -36,8 +37,11 @@ export function TripSettingsForm({
   // what was actually typed that time.
   const formKey = state.submitted ? JSON.stringify(state.submitted) : "saved";
 
+  const formRef = useRef<HTMLFormElement>(null);
+  useDirtyForm(formRef, state);
+
   return (
-    <form action={action} key={formKey} className="space-y-4">
+    <form ref={formRef} action={action} key={formKey} className="space-y-4">
       <SaveStatus state={state} savedMessage="Saved. Your trip settings are up to date." />
 
       <Card className="p-4">

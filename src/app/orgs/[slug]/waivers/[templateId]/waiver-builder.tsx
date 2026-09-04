@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { saveWaiverVersionAction } from "@/lib/actions/waivers";
 import type { FormState } from "@/lib/actions/auth";
 import {
@@ -14,6 +14,7 @@ import {
 import { Alert, Badge, Button, Card, Checkbox, Field, Input, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { SaveError, SaveStatus } from "@/components/save-status";
+import { useUnsavedChanges } from "@/components/unsaved-changes";
 import { WaiverText } from "@/components/waiver-text";
 
 const initial: FormState = {};
@@ -43,6 +44,15 @@ export function WaiverBuilder({
   const [content, setContent] = useState<WaiverContent>(initialContent);
   const [preview, setPreview] = useState(false);
   const bodyRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+
+  // What is on the server right now. A save moves this forward; until then any
+  // difference is unsaved legal text, which is the worst thing here to lose.
+  const [saved, setSaved] = useState(() => JSON.stringify({ name: templateName, initialContent }));
+  useEffect(() => {
+    if (state.ok) setSaved(JSON.stringify({ name, initialContent: content }));
+    // Only when a save reports success — a rejection leaves the work unsaved.
+  }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
+  useUnsavedChanges(JSON.stringify({ name, initialContent: content }) !== saved);
 
   const setSection = (key: SectionKey, patch: Partial<WaiverContent["sections"][SectionKey]>) =>
     setContent((c) => ({

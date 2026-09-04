@@ -788,6 +788,28 @@ MANUAL_GRANT is never a conversion and never revenue.
 
 ---
 
+## 11d. Saving, and knowing that you saved
+
+**One save result, shown the same way.** `SaveStatus` scrolls its confirmation
+into view and takes focus on success, because the alternative — rendering it at
+the top of a long form and hoping — means a leader at the bottom of the waiver
+builder cannot tell a save from a no-op. A failure deliberately does not move
+the page: `SaveError` repeats the reason beside the button that was pressed, so
+the work stays where the person left it.
+
+**A rejected save must not eat the work.** React 19 resets an uncontrolled form
+once its action settles, so every long form's action echoes the submitted values
+back in `FormState.submitted`, and the form is keyed on those values so it
+remounts and re-applies them. Without the key the echo never reaches the DOM:
+`defaultValue` is only read on mount.
+
+**Unsaved-changes warnings are limited to three screens** — the waiver builder,
+trip settings, and a person's details — and cover tab close, reload, and in-app
+links. The browser back button is not blocked: the App Router offers no
+supported way, and a guard that misfires teaches people to click through it.
+
+---
+
 ## 12. Non-goals restated
 
 No native apps. No AI. No SMS. No chat. No social graph. No church membership
