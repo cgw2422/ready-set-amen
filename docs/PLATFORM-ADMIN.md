@@ -23,6 +23,11 @@ The account signs in through the ordinary login with its own password. Granting
 the role never sets, reads or prints a password, and the CLI refuses politely if
 no such account exists.
 
+Once the role is held, signing in lands on `/admin` rather than the church list
+— an admin signs in to look at the platform. An invitation link still wins,
+because it is the more specific intent, and everyone else is unaffected. The
+church list stays one click away under **Back to app**.
+
 On Railway, run these from the service shell so `DATABASE_URL` is already set.
 
 Why a shell command and not a settings screen: the role is what guards the

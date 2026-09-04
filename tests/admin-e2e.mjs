@@ -212,6 +212,37 @@ check(
   "no re-login was performed above",
 );
 
+log("...and signing in fresh lands on the admin area, not the church list");
+const freshCtx = await context();
+const fresh = await freshCtx.newPage();
+await fresh.goto(`${BASE}/login`);
+await fresh.fill('input[name="email"]', ownerEmail);
+await fresh.fill('input[name="password"]', PASSWORD);
+await fresh.click('button[type="submit"]');
+await fresh.waitForURL(/\/admin|\/orgs/, { timeout: 30000 });
+check(
+  "a platform admin signs in straight into /admin",
+  new URL(fresh.url()).pathname === "/admin",
+  fresh.url().replace(BASE, ""),
+);
+await freshCtx.close();
+
+const leaderLanding = await leaderCtx.newPage();
+await leaderLanding.goto(`${BASE}/logout`).catch(() => undefined);
+const plainCtx = await context();
+const plain = await plainCtx.newPage();
+await plain.goto(`${BASE}/login`);
+await plain.fill('input[name="email"]', leaderEmail);
+await plain.fill('input[name="password"]', PASSWORD);
+await plain.click('button[type="submit"]');
+await plain.waitForURL(/\/orgs/, { timeout: 30000 });
+check(
+  "everyone else still lands on their church",
+  new URL(plain.url()).pathname.startsWith("/orgs"),
+  plain.url().replace(BASE, ""),
+);
+await plainCtx.close();
+
 log("...and the pages show real platform numbers, not church data");
 await owner.goto(`${BASE}/admin`);
 await owner.waitForLoadState("networkidle");

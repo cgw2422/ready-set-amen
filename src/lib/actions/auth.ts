@@ -98,7 +98,7 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
 
   const user = await prisma.user.findUnique({
     where: { email: parsed.data.email },
-    select: { id: true, passwordHash: true },
+    select: { id: true, passwordHash: true, platformRole: true },
   });
 
   if (!user) {
@@ -121,6 +121,11 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
 
   const invite = String(formData.get("invite") ?? "").trim();
   if (invite) redirect(`/invite/${encodeURIComponent(invite)}`);
+
+  // A platform admin signs in to look at the platform, so that is where they
+  // land. Their own churches are one click away in the menu. An invitation link
+  // still wins above, because it is the more specific intent.
+  if (user.platformRole === "PLATFORM_ADMIN") redirect("/admin");
 
   const membership = await prisma.organizationMember.findFirst({
     where: { userId: user.id },
