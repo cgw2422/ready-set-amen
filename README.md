@@ -101,8 +101,20 @@ operational reports.
 Nothing is ever deleted or locked for not paying. The rules live in one place,
 `src/lib/entitlement.ts`, which the UI and every server action both read.
 
+Giving a church access for free is a shell command, not a screen:
+
+```bash
+npm run access:grant-org  -- "Grace Community Church" --reason "pilot church"
+npm run access:revoke-org -- "Grace Community Church"
+npm run access:list-manual
+```
+
+It records the reason and the time, never invents a Stripe purchase, and is
+counted separately from revenue. Revoke only ever takes back a manual grant —
+a church that actually paid is refused.
+
 See **[`docs/PRICING-AND-DOMAINS.md`](docs/PRICING-AND-DOMAINS.md)** for DNS,
-Stripe setup, the full free/paid table, and how to grant access by hand.
+Stripe setup, and the full free/paid table.
 
 ---
 

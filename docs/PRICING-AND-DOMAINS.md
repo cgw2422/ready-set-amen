@@ -224,15 +224,45 @@ got its access, with Stripe's identifiers for reconciliation. A manual grant is
 recorded as `MANUAL_GRANT` with a reason, so nothing ever reads a gift as
 revenue.
 
-### Granting access by hand
+### Giving a church Ready Set Amen for free
 
 For a pilot church, a complimentary account, or a support case. There is no
-admin panel and no HTTP route:
+admin panel and no HTTP route — a shell on the deployment is the only way in.
 
 ```bash
-npm run grant -- <organization-slug> "pilot church, spoke 3 Sep"
-npm run grant:status -- <organization-slug>
+npm run access:grant-org  -- "Grace Community Church" --reason "pilot church, spoke 3 Sep"
+npm run access:revoke-org -- "Grace Community Church"
+npm run access:list-manual
 ```
+
+The church can be named by its id, its slug, or its name. A name that matches
+several churches is refused with the list, rather than guessed at.
+
+A grant sets `MANUAL_LIFETIME` and writes a `MANUAL_GRANT` record holding the
+reason and the time. Every paid feature is open on the church's next request.
+Nothing Stripe-shaped is invented: the amount is zero and the source is not
+`STRIPE_CHECKOUT`, so `/admin` never reads a gift as revenue or as a
+conversion — manual grants are counted on their own line.
+
+`--by you@example.com` records which account made the grant, when that is worth
+knowing. It has to be a real account; leave it off otherwise.
+
+**Revoke refuses more often than it acts, on purpose.** It returns a church to
+`FREE_SETUP` only when the access came from a manual grant. It will not touch:
+
+| | Why |
+| --- | --- |
+| A church with a Stripe purchase | They paid. Refund it in Stripe if that is the intent |
+| The demo church | It runs on `DEMO`, which is not a grant |
+| A church on `FREE_SETUP` | There is nothing to take back |
+
+The Stripe check reads the purchase records, not the entitlement column, so a
+church that paid is protected even if its entitlement somehow says otherwise.
+Revoking leaves trips and people untouched — free-setup limits simply apply
+again — and the original grant stays in the record, because it did happen.
+
+`npm run grant -- <slug> "reason"` is the older, slug-only equivalent of the
+grant command and still works.
 
 ### The demo church
 

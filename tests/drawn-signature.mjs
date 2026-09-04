@@ -223,6 +223,10 @@ check("the existing signed record still shows its drawing", /Signature record/.t
 
 check("no uncaught client exceptions anywhere in this run", pageErrors.length === 0, pageErrors[0] ?? "");
 
+// Leave the trip on a version that asks for no drawing, so this suite hands the
+// database back the way it found it for whatever runs next.
+await adoptLatestVersion(tripUrl);
+
 await browser.close();
 console.log(failures === 0 ? "\nDrawn signature holds.\n" : `\n${failures} check(s) failed.\n`);
 process.exit(failures === 0 ? 0 : 1);

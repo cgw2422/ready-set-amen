@@ -12,7 +12,12 @@ import { after, before, test } from "node:test";
 import { createHmac } from "node:crypto";
 import { prisma } from "../src/lib/db";
 import { hashPassword } from "../src/lib/crypto";
-import { grantLifetimeAccess, latestPurchase } from "../src/lib/billing";
+import {
+  grantLifetimeAccess,
+  latestPurchase,
+  manualLifetimeOrganizations,
+  revokeManualAccess,
+} from "../src/lib/billing";
 import {
   FREE_SETUP,
   canAddAttendee,
@@ -27,6 +32,7 @@ import {
   unlockPath,
 } from "../src/lib/entitlement";
 import { LAUNCH_PRICE_CENTS, formatPrice } from "../src/lib/pricing";
+import { allTimeMetrics } from "../src/lib/admin/metrics";
 import type { Entitlement } from "@prisma/client";
 
 const OWNER_EMAIL = "owner@billing.test";
@@ -380,4 +386,187 @@ test("there is no HTTP route that grants access without a Stripe signature", asy
   const webhook = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
   assert.ok(webhook.includes("verifyWebhook"), "the webhook verifies its signature");
   assert.ok(webhook.includes('payment_status !== "paid"'), "and only acts on a paid session");
+});
+
+// ---------------------------------------------------------------------------
+// Giving a church Ready Set Amen for free, and taking it back safely.
+//
+// The whole risk here is the revoke command: a mistyped church name must never
+// be able to take access from someone who paid for it.
+// ---------------------------------------------------------------------------
+
+/** A church on a manual grant, with the reason recorded. */
+async function grantedChurch(slug: string, reason = "pilot church, spoke 3 Sep") {
+  const org = await prisma.organization.create({ data: { name: `Granted ${slug}`, slug } });
+  await grantLifetimeAccess({
+    organizationId: org.id,
+    source: "MANUAL_GRANT",
+    entitlement: "MANUAL_LIFETIME",
+    amountCents: 0,
+    grantReason: reason,
+    purchasedByUserId: ownerId,
+  });
+  return org.id;
+}
+
+test("a manual grant opens every paid feature, exactly like a purchase", async () => {
+  const id = await grantedChurch(`${FREE_SLUG}-manual-access`);
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id } });
+
+  assert.equal(org.entitlement, "MANUAL_LIFETIME");
+  assert.equal(hasFullAccess(org), true);
+
+  // Every gate the free plan closes.
+  assert.equal(canCreateTrip(org, 5).allowed, true, "a second trip");
+  assert.equal(canAddAttendee(org, 200).allowed, true, "past ten attendees");
+  assert.equal(canCreateSigningLink(org).allowed, true, "waiver signing links");
+  assert.equal(canRunHeadcount(org).allowed, true, "headcounts");
+  assert.equal(canInviteLeader(org).allowed, true, "leader invitations");
+  assert.equal(canGenerateTripPacket(org).allowed, true, "trip packets");
+
+  await prisma.organization.delete({ where: { id } });
+});
+
+test("a manual grant is worth nothing in the platform numbers", async () => {
+  const before = await allTimeMetrics();
+  const id = await grantedChurch(`${FREE_SLUG}-manual-metrics`);
+  const after = await allTimeMetrics();
+
+  assert.equal(
+    after.lifetimeRevenueCents,
+    before.lifetimeRevenueCents,
+    "a gift is not revenue",
+  );
+  assert.equal(
+    after.lifetimePurchases,
+    before.lifetimePurchases,
+    "a gift is not a Stripe purchase",
+  );
+  assert.equal(
+    after.paidOrganizations,
+    before.paidOrganizations,
+    "and never a Stripe conversion",
+  );
+  assert.equal(
+    after.manualLifetimeOrganizations,
+    before.manualLifetimeOrganizations + 1,
+    "it is counted separately, where it belongs",
+  );
+
+  await prisma.organization.delete({ where: { id } });
+});
+
+test("revoking a manual grant returns the church to free setup", async () => {
+  const id = await grantedChurch(`${FREE_SLUG}-manual-revoke`);
+
+  const listed = await manualLifetimeOrganizations();
+  const row = listed.find((entry) => entry.id === id);
+  assert.ok(row, "it shows up in the manual list");
+  assert.equal(row.reason, "pilot church, spoke 3 Sep", "with the reason it was given for");
+  assert.equal(row.grantedBy, OWNER_EMAIL, "and who granted it");
+  assert.ok(row.grantedAt instanceof Date, "and when");
+
+  const result = await revokeManualAccess(id);
+  assert.equal(result.revoked, true);
+
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id } });
+  assert.equal(org.entitlement, "FREE_SETUP");
+  assert.equal(hasFullAccess(org), false, "the paid features close again");
+
+  // The grant itself stays in the record — it did happen.
+  const purchase = await latestPurchase(id);
+  assert.equal(purchase?.source, "MANUAL_GRANT");
+  assert.equal(purchase?.grantReason, "pilot church, spoke 3 Sep");
+
+  assert.equal(
+    (await manualLifetimeOrganizations()).some((entry) => entry.id === id),
+    false,
+    "and it drops off the manual list",
+  );
+
+  await prisma.organization.delete({ where: { id } });
+});
+
+test("revoke never touches a church that actually paid", async () => {
+  const paid = await prisma.organization.findUniqueOrThrow({ where: { id: paidOrgId } });
+  assert.equal(paid.entitlement, "LIFETIME");
+
+  const result = await revokeManualAccess(paidOrgId);
+  assert.equal(result.revoked, false);
+  assert.equal(result.reason, "not-manual");
+
+  const after = await prisma.organization.findUniqueOrThrow({ where: { id: paidOrgId } });
+  assert.equal(after.entitlement, "LIFETIME", "a paid church keeps what it bought");
+});
+
+test("a Stripe purchase is protected even if the entitlement column says otherwise", async () => {
+  // The dangerous case: a church that paid, then somehow shows MANUAL_LIFETIME.
+  // The purchase record is the truth, and it wins.
+  const org = await prisma.organization.create({
+    data: { name: "Paid Then Muddled", slug: `${FREE_SLUG}-muddled` },
+  });
+  await grantLifetimeAccess({
+    organizationId: org.id,
+    source: "STRIPE_CHECKOUT",
+    entitlement: "LIFETIME",
+    amountCents: LAUNCH_PRICE_CENTS,
+    stripeCheckoutSessionId: `cs_test_muddled_${Date.now()}`,
+  });
+  await prisma.organization.update({
+    where: { id: org.id },
+    data: { entitlement: "MANUAL_LIFETIME" },
+  });
+
+  const result = await revokeManualAccess(org.id);
+  assert.equal(result.revoked, false);
+  assert.equal(result.reason, "stripe-purchase", "the real purchase is what matters");
+
+  const after = await prisma.organization.findUniqueOrThrow({ where: { id: org.id } });
+  assert.equal(after.entitlement, "MANUAL_LIFETIME", "nothing was downgraded");
+
+  await prisma.organization.delete({ where: { id: org.id } });
+});
+
+test("the demo church is not a grant to take back", async () => {
+  const demo = await prisma.organization.create({
+    data: {
+      name: "Demo For Revoke",
+      slug: `${FREE_SLUG}-demo-revoke`,
+      isDemo: true,
+      entitlement: "DEMO",
+    },
+  });
+
+  const result = await revokeManualAccess(demo.id);
+  assert.equal(result.revoked, false);
+  assert.equal(result.reason, "demo");
+
+  const after = await prisma.organization.findUniqueOrThrow({ where: { id: demo.id } });
+  assert.equal(after.entitlement, "DEMO", "the demo keeps running");
+  assert.equal(hasFullAccess(after), true);
+
+  assert.equal(
+    (await manualLifetimeOrganizations()).some((entry) => entry.id === demo.id),
+    false,
+    "and never appears in the manual grant list",
+  );
+
+  await prisma.organization.delete({ where: { id: demo.id } });
+});
+
+test("revoking a church that was never granted changes nothing", async () => {
+  // A church of its own: the shared free fixture has picked up a purchase from
+  // the checkout tests above, and that is a different refusal.
+  const org = await prisma.organization.create({
+    data: { name: "Never Granted", slug: `${FREE_SLUG}-never-granted` },
+  });
+
+  const result = await revokeManualAccess(org.id);
+  assert.equal(result.revoked, false);
+  assert.equal(result.reason, "not-manual");
+
+  const after = await prisma.organization.findUniqueOrThrow({ where: { id: org.id } });
+  assert.equal(after.entitlement, "FREE_SETUP");
+
+  await prisma.organization.delete({ where: { id: org.id } });
 });

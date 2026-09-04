@@ -168,7 +168,15 @@ check(
   `the new signature is counted (${signedBefore} -> ${signedAfter})`,
   signedAfter === signedBefore + 1,
 );
-await page.click('a:has-text("View signed waiver")');
+// By participant, not by position: other signatures exist, and the queue
+// hands links out in its own order.
+const signedFor = done.match(/Thank you\. ([^.]+?) is signed/)?.[1]?.trim() ?? "";
+const signedRow = page.locator("li", { hasText: signedFor });
+if (signedFor && (await signedRow.count()) > 0) {
+  await signedRow.last().locator('a:has-text("View signed waiver")').first().click();
+} else {
+  await page.click('a:has-text("View signed waiver")');
+}
 await page.waitForSelector("text=Signature record");
 const record = await page.textContent("body");
 check(
